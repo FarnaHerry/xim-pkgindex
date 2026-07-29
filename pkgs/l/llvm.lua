@@ -28,6 +28,15 @@ package = {
                 "xim:linux-headers@5.11.1",
                 "xim:zlib@1.3.1",
                 "xim:libxml2@2.13.5",
+                -- clang-22 links libstdc++.so.6 dynamically; clang-20 carried a
+                -- static C++ runtime and needed nothing. Nothing else in this
+                -- dep list ships libstdc++, so without this the 22.1.8 clang
+                -- cannot start at all on a machine that has no system
+                -- libstdc++ -- which is every clean machine. It has to be a
+                -- declared dep rather than a later `xlings install
+                -- gcc-runtime`: the RPATH is baked at llvm install time, so a
+                -- runtime that arrives afterwards is invisible to the loader.
+                "xim:gcc-runtime@15.1.0",
             },
             ["latest"] = { ref = "22.1.8" },
             ["20.1.7"] = "XLINGS_RES",
@@ -104,27 +113,45 @@ local function is_registerable_bin(pathname)
     return os.isfile(pathname)
 end
 
+-- Split a bin/ filename into the name to register and the alias to point at.
+-- Returns (name, alias) where alias is nil when the two are the same, so
+-- non-Windows registration is byte-for-byte what it was before.
+local function program_target_name(filename)
+    if os.host() == "windows" and filename:sub(-4):lower() == ".exe" then
+        return filename:sub(1, -5), filename
+    end
+    return filename, nil
+end
+
 local function collect_bin_apps(bindir)
     local apps = {}
     local cmd
     if os.host() == "windows" then
-        cmd = 'dir /b "' .. bindir .. '" 2>nul'
+        -- Backslashes are mandatory here. `dir` is a cmd.exe builtin and
+        -- treats "/" as its switch introducer, while libxpkg's path.join
+        -- always joins with "/" regardless of host -- so the bindir handed in
+        -- looks like `C:\...\xim-x-llvm\22.1.8/bin` and cmd lists nothing.
+        -- That is how a full LLVM install ended up registering zero programs
+        -- on Windows while clang.exe sat on disk the whole time.
+        cmd = 'dir /b "' .. bindir:gsub("/", "\\") .. '" 2>nul'
     else
         cmd = 'ls -1 "' .. bindir .. '" 2>/dev/null'
     end
     local f = io.popen(cmd)
-    if f then
-        for name in f:lines() do
-            local clean = name:gsub("[\r\n]+$", "")
-            if clean ~= "" then
-                local filepath = path.join(bindir, clean)
-                if is_registerable_bin(filepath) then
-                    table.insert(apps, clean)
-                end
+    if not f then
+        log.error("llvm: cannot list bin dir (io.popen failed): " .. bindir)
+        return apps
+    end
+    for name in f:lines() do
+        local clean = name:gsub("[\r\n]+$", "")
+        if clean ~= "" then
+            local filepath = path.join(bindir, clean)
+            if is_registerable_bin(filepath) then
+                table.insert(apps, clean)
             end
         end
-        f:close()
     end
+    f:close()
     table.sort(apps)
     return apps
 end
@@ -314,18 +341,48 @@ function __install_macosx_cfg()
         end
     end
 
-    local clang_cfg = ""
-    local clangxx_cfg = "-isystem" .. cxxinc .. "\n"
+    -- Link with the bundled ld64.lld, not Apple's ld.
+    --
+    -- Handing the link to Apple's ld crashes it outright on 22.1.8:
+    --
+    --   dyld: Symbol not found: __ZdaPv
+    --     Referenced from: .../XcodeDefault.xctoolchain/usr/bin/ld
+    --     Expected in:     .../xim-x-llvm/22.1.8/lib/libc++.1.0.dylib
+    --
+    -- The driver puts this toolchain's lib dir on DYLD_LIBRARY_PATH when it
+    -- spawns the linker, so ld can pick up libLTO from the toolchain. dyld
+    -- overrides by LEAF NAME, so ld's own dependency on
+    -- /usr/lib/libc++.1.dylib is then satisfied by OUR libc++.1.dylib -- and
+    -- libc++ 22 no longer exports operator delete[], which Apple's ld needs.
+    -- The slim build does not even ship libLTO.dylib, so nothing is gained in
+    -- exchange.
+    --
+    -- 20.1.7 is poisoned exactly the same way and survives only because
+    -- libc++ 20 still happened to export what ld wanted; this is a latent
+    -- failure there, not a 22-only bug. Using our own linker removes the
+    -- host-toolchain coupling entirely, which is what a "self-contained
+    -- toolchain" was supposed to mean.
+    local usr_lld = "-fuse-ld=lld\n"
+
+    local clang_cfg = usr_lld
+    local clangxx_cfg = usr_lld .. "-isystem" .. cxxinc .. "\n"
 
     if sdkroot and sdkroot ~= "" then
-        clang_cfg = "--sysroot=" .. sdkroot .. "\n"
+        clang_cfg = "--sysroot=" .. sdkroot .. "\n" .. clang_cfg
         clangxx_cfg = "--sysroot=" .. sdkroot .. "\n" .. clangxx_cfg
     else
         log.warn("macOS SDK path not detected; clang may need manual --sysroot")
     end
 
+    -- clang reads <invoked-name>.cfg, so the versioned driver needs its own
+    -- copy. The major version has to come from pkginfo: hardcoding "clang-20"
+    -- put a clang-20.cfg inside the 22.1.8 install (where the driver is
+    -- clang-22), so the sysroot silently did not apply to it.
+    local major = pkginfo.version():match("^(%d+)") or ""
     io.writefile(path.join(pkginfo.install_dir(), "bin", "clang.cfg"), clang_cfg)
-    io.writefile(path.join(pkginfo.install_dir(), "bin", "clang-20.cfg"), clang_cfg)
+    if major ~= "" then
+        io.writefile(path.join(pkginfo.install_dir(), "bin", "clang-" .. major .. ".cfg"), clang_cfg)
+    end
     io.writefile(path.join(pkginfo.install_dir(), "bin", "clang++.cfg"), clangxx_cfg)
 end
 
@@ -334,11 +391,29 @@ function config()
     local binding = package.name .. "@" .. pkginfo.version()
     local related_apps = collect_bin_apps(bindir)
 
+    -- A compiler toolchain that registers no programs is never correct, so
+    -- fail instead of reporting a successful install of nothing. Without this
+    -- the Windows listing bug above produced `✓ 1 package(s) installed`
+    -- followed by `xlings: 'clang' is not installed`, with no error in between.
+    if #related_apps == 0 then
+        log.error("llvm: no registerable programs found in " .. bindir)
+        return false
+    end
+
     xvm.add(package.name)
 
     for _, app in ipairs(related_apps) do
-        xvm.add(app, {
+        -- The registered NAME must not carry the extension: users type
+        -- `clang`, and `xlings use` looks the target up by that name.
+        -- collect_bin_apps returns real filenames, which on Windows means
+        -- `clang.exe` -- registering that verbatim produced a target called
+        -- "clang.exe" and left `clang --version` reporting
+        -- "'clang' is not installed". The alias carries the filename, exactly
+        -- as the hand-written alias_apps_windows table above already does.
+        local target, alias = program_target_name(app)
+        xvm.add(target, {
             bindir = bindir,
+            alias = alias,
             binding = binding,
         })
     end
@@ -400,7 +475,11 @@ function uninstall()
     xvm.remove(package.name)
 
     for _, app in ipairs(related_apps) do
-        xvm.remove(app)
+        -- Must strip exactly as config() did, or removal asks for a target
+        -- name ("clang.exe") that was never registered and silently removes
+        -- nothing, leaving the real shim behind.
+        local target = program_target_name(app)
+        xvm.remove(target)
     end
 
     local aliases = alias_apps
