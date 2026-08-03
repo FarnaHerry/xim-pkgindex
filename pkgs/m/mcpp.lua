@@ -394,7 +394,7 @@ package = {
             ["2026.8.3.3"] = {
                 url = "XLINGS_RES",
                 sha256 = {
-                    arm64 = "4c477842f179375333825fdd5335d5892502b71faaa88cbdf5ba2aee05eabb62",
+                    aarch64 = "4c477842f179375333825fdd5335d5892502b71faaa88cbdf5ba2aee05eabb62",
                 },
             },
             ["2026.8.3.2"] = {
