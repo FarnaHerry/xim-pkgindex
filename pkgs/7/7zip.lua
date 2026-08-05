@@ -73,10 +73,15 @@ function install()
     local archive = pkginfo.install_file()
 
     if os.host() == "windows" then
-        -- The windows asset is a 7z self-extracting archive (Type = 7z).
-        -- `/S /D=` makes it extract silently into our own install dir instead
-        -- of running the interactive installer; /D must be the last argument.
-        os.exec(string.format('"%s" /S /D="%s"', archive, install_dir))
+        -- The windows asset is a 7z self-extracting archive holding 7z.exe /
+        -- 7zG.exe / 7zFM.exe directly. `/S /D=` is its documented silent
+        -- extract form. Run it through PowerShell's `&` call operator: a bare
+        -- os.exec string trips cmd.exe's `/c` quote-stripping and the command
+        -- dies before the SFX runs ("filename, directory name, or volume label
+        -- syntax is incorrect").
+        fs.mkdir_p(install_dir)
+        os.exec(string.format([[
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& '%s' '/S' '/D=%s'"]], archive, install_dir))
         return os.isfile(path.join(install_dir, "7z.exe"))
     end
 
