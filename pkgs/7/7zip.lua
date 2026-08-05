@@ -75,13 +75,13 @@ function install()
     if os.host() == "windows" then
         -- The windows asset is a 7z self-extracting archive holding 7z.exe /
         -- 7zG.exe / 7zFM.exe directly. `/S /D=` is its documented silent
-        -- extract form. Run it through PowerShell's `&` call operator: a bare
-        -- os.exec string trips cmd.exe's `/c` quote-stripping and the command
-        -- dies before the SFX runs ("filename, directory name, or volume label
-        -- syntax is incorrect").
+        -- extract form. Two gotchas: a bare os.exec string trips cmd.exe's
+        -- `/c` quote-stripping, and PowerShell's `&` operator does NOT wait
+        -- for a GUI-subsystem process — the hook would check for 7z.exe before
+        -- the SFX finished. `Start-Process -Wait` fixes both.
         fs.mkdir_p(install_dir)
         os.exec(string.format([[
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& '%s' '/S' '/D=%s'"]], archive, install_dir))
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%s' -ArgumentList '/S','/D=%s' -Wait | Out-Null"]], archive, install_dir))
         return os.isfile(path.join(install_dir, "7z.exe"))
     end
 
