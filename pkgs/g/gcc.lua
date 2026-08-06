@@ -205,13 +205,32 @@ function __config_linux()
     -- individual payloads are not — the subos is exactly xlings' FHS
     -- composite view for this purpose. Consumers that bypass the shim
     -- (e.g. mcpp) supply their own header flags.
-    local sysroot_dir = system.subos_sysrootdir()
-    local alias_args = ""
-    if sysroot_dir and sysroot_dir ~= "" then
-        alias_args = string.format(' --sysroot=%s', sysroot_dir)
-    else
-        log.warn("subos dir is empty, skip alias sysroot injection")
-    end
+    --
+    -- Written as the marker `${XLINGS_DYNAMIC_SUBOS_DIR}`, not as whichever
+    -- subos happens to be active while this hook runs.
+    --
+    -- The xvm database is shared by every subos in the home, so a path naming
+    -- one of them is right for the subos that installed gcc and wrong for all
+    -- the others: the user switches subos and their g++ keeps compiling
+    -- against the old one's headers, with nothing saying so.
+    --
+    -- xlings expands the marker at execution time, against whichever subos the
+    -- calling process resolved to -- global selection, XLINGS_ACTIVE_SUBOS, or
+    -- a project subos. No filesystem path can follow an environment variable,
+    -- which is why the answer cannot be stored at all.
+    --
+    -- The marker is xlings's, the `--sysroot=` spelling is ours. That split is
+    -- deliberate: xlings owns a dictionary of runtime FACTS a recipe can name,
+    -- and a recipe owns the syntax its tool wants them in. A toolchain needing
+    -- `-isysroot` or `--gcc-toolchain=` writes that here and needs no xlings
+    -- change.
+    --
+    -- Older xlings (< 2026.7.31.2) does not expand it. Those clients keep
+    -- working through the exec-time path normalization they already have --
+    -- but it only sees CONCRETE paths, so on them this alias reaches gcc with
+    -- the marker literal. Land this only once the expanding release is what
+    -- `latest` resolves to.
+    local alias_args = ' --sysroot=${XLINGS_DYNAMIC_SUBOS_DIR}'
 
     -- Root of the release's binding group. `type = "group"` because it names
     -- no artifact: no bindir, no alias, nothing under it to exec. As the
