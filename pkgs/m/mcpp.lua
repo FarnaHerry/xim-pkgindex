@@ -59,7 +59,6 @@ package = {
                     x86_64 = "ec447e27682e8a0885fb7d213dda0a720773d5fbcfccb8c3dfc366ca2d3613b6",
                 },
             },
-            ["latest"] = { ref = "2026.9.5.3" },
             ["2026.9.5.3"] = {
                 url = "XLINGS_RES",
                 sha256 = {
@@ -882,7 +881,6 @@ package = {
                     aarch64 = "f6e68607291d530ae606bc606c933ae744368cdb45211a4ab1031fe6b2194127",
                 },
             },
-            ["latest"] = { ref = "2026.9.5.3" },
             ["2026.9.5.3"] = {
                 url = "XLINGS_RES",
                 sha256 = {
@@ -1586,7 +1584,6 @@ package = {
                     x86_64 = "47048b34112642ecb2d874cbbd68eb980eae2917601efdf954fa09c3ab6706f7",
                 },
             },
-            ["latest"] = { ref = "2026.9.5.3" },
             ["2026.9.5.3"] = {
                 url = "XLINGS_RES",
                 sha256 = {
