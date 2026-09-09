@@ -11,7 +11,7 @@ package = {
     spec = "2",
 
     name = "apitab",
-    namespace = "FarnaHerry",
+    namespace = "farnaherry",
     description = "Desktop API development tool with request management, testing, mocks, history, load testing, and a CLI",
     homepage = "https://github.com/FarnaHerry/apitab",
     authors = {"FarnaHerry"},
