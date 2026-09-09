@@ -44,6 +44,13 @@ package = {
     -- The release currently ships Linux x86_64, macOS arm64, and Windows x64.
     xpm = {
         linux = {
+            -- The Linux GUI binary is dynamically linked against the GTK/GLib
+            -- and X11 stack. aria2-next also needs the C++ runtime; these two
+            -- roots pull in the complete runtime closure used by the release.
+            deps = {
+                "xim:gtk4@>=4.16.13",
+                "xim:gcc-runtime@>=15.1.0",
+            },
             ["latest"] = { ref = "0.5.20" },
             ["0.5.20"] = {
                 x86_64 = asset("0.5.20", "tinynext-v0.5.20-linux-x86_64.tar.gz",
