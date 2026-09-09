@@ -44,11 +44,22 @@ package = {
     -- The release currently ships Linux x86_64, macOS arm64, and Windows x64.
     xpm = {
         linux = {
-            -- The Linux GUI binary is dynamically linked against the GTK/GLib
-            -- and X11 stack. aria2-next also needs the C++ runtime; these two
-            -- roots pull in the complete runtime closure used by the release.
+            -- These are the direct soname providers measured from the Linux
+            -- release payload. The closure checker requires a provider to be
+            -- a direct dependency: a transitive GTK dependency does not put
+            -- its library directory on TinyNext's RPATH.
             deps = {
-                "xim:gtk4@>=4.16.13",
+                "xim:glibc@>=2.38",
+                "xim:glib@>=2.88",
+                "xim:zlib@>=1.3",
+                "xim:libX11@>=1.8",
+                "xim:libXcursor@>=1.2",
+                "xim:libXext@>=1.3",
+                "xim:libXfixes@>=6.0",
+                "xim:libXi@>=1.8",
+                "xim:libXinerama@>=1.1",
+                "xim:libXrandr@>=1.5",
+                "xim:libXrender@>=0.9",
                 "xim:gcc-runtime@>=15.1.0",
             },
             ["latest"] = { ref = "0.5.20" },
