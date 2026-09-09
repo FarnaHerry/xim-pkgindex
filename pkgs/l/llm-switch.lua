@@ -11,6 +11,7 @@ package = {
     spec = "2",
 
     name = "llm-switch",
+    namespace = "FarnaHerry",
     description = "Desktop provider switcher and local router for Claude Code, Codex, opencode, pi, and Claude Desktop",
     homepage = "https://github.com/FarnaHerry/llm-switch",
     authors = {"FarnaHerry"},
