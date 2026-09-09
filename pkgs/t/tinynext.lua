@@ -1,8 +1,16 @@
 local function asset(version, filename, sha256)
+    local url = string.format(
+        "https://github.com:443/FarnaHerry/tinynext/releases/download/v%s/%s",
+        version, filename)
     return {
-        url = string.format(
-            "https://github.com/FarnaHerry/tinynext/releases/download/v%s/%s",
-            version, filename),
+        url = {
+            -- The explicit HTTPS port keeps the URL on the authoritative
+            -- GitHub release CDN while preventing xlings from rewriting it
+            -- to third-party proxy URLs. Those proxies returned HTTP 404
+            -- after completing the download in the install CI jobs.
+            GLOBAL = url,
+            CN = url,
+        },
         sha256 = sha256,
     }
 end
