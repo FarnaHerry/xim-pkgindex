@@ -11,7 +11,7 @@ package = {
     spec = "2",
 
     name = "tinynext",
-    namespace = "FarnaHerry",
+    namespace = "farnaherry",
     description = "Cross-platform GUI downloader with aria2-next, video extraction, and a headless CLI",
     homepage = "https://github.com/FarnaHerry/tinynext",
     authors = {"FarnaHerry"},
