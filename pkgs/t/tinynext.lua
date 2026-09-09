@@ -47,14 +47,14 @@ package = {
             ["latest"] = { ref = "0.5.20" },
             ["0.5.20"] = {
                 x86_64 = asset("0.5.20", "tinynext-v0.5.20-linux-x86_64.tar.gz",
-                    "e0dba9306f87560b614b58fc907dcf23242f587657c32eb255d0f0272774e48"),
+                    "e0dba9306f87560b614b58fc907dcf23242f587657c32eb2558d0f0272774e48"),
             },
         },
         macosx = {
             ["latest"] = { ref = "0.5.20" },
             ["0.5.20"] = {
                 aarch64 = asset("0.5.20", "tinynext-v0.5.20-macos-arm64.tar.gz",
-                    "fb8ac11dc485473f7b362321c6185ae704dd0303da489bc153feb7208b950e"),
+                    "fb8ac11dc485ed473f7b362321c6185ae704dd0303da489bc153feb7208b950e"),
             },
         },
         windows = {

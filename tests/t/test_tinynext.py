@@ -48,8 +48,8 @@ class TestStatic:
         source = meta.raw_content
         assert '["latest"] = { ref = "0.5.20" }' in source
         assert source.count('["0.5.20"] = {') == 3
-        assert source.count('"e0dba9306f87560b614b58fc907dcf23242f587657c32eb255d0f0272774e48"') == 1
-        assert source.count('"fb8ac11dc485473f7b362321c6185ae704dd0303da489bc153feb7208b950e"') == 1
+        assert source.count('"e0dba9306f87560b614b58fc907dcf23242f587657c32eb2558d0f0272774e48"') == 1
+        assert source.count('"fb8ac11dc485ed473f7b362321c6185ae704dd0303da489bc153feb7208b950e"') == 1
         assert source.count('"d71c768419cb934f687f97c25b4f0c1f0e92730da6cc2978712cc2226369dde0"') == 1
         assert re.search(r"tinynext-v0\.5\.20-linux-x86_64\.tar\.gz", source)
         assert re.search(r"tinynext-v0\.5\.20-macos-arm64\.tar\.gz", source)
