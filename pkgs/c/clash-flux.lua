@@ -11,7 +11,7 @@ package = {
     spec = "2",
 
     name = "clash-flux",
-    namespace = "FarnaHerry",
+    namespace = "farnaherry",
     description = "C++23 desktop proxy client built around the mihomo core and Clash Verge Rev-style workflows",
     homepage = "https://github.com/FarnaHerry/Clash-Flux",
     authors = {"FarnaHerry"},
