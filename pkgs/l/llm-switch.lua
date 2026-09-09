@@ -25,7 +25,9 @@ package = {
     categories = {"app", "ai", "tools"},
     keywords = {"llm", "claude", "codex", "opencode", "provider", "router"},
 
-    programs = {"llm-switch"},
+    -- This is a GUI-only binary; `config()` still registers the package name
+    -- as its xvm entry, but there is no non-interactive program for CI to run.
+    programs = {},
     xvm_enable = true,
 
     -- v0.1.4 is the latest non-prerelease GitHub release (2026-09-08).
@@ -93,6 +95,10 @@ function install()
     local exe = is_host("macosx")
         and path.join(dir, "llm-switch.app", "Contents", "MacOS", "llm-switch")
         or path.join(dir, is_host("windows") and "llm-switch.exe" or "llm-switch")
+    if not is_host("windows") then
+        -- Archive extraction does not reliably preserve executable bits.
+        system.exec(string.format('chmod +x "%s"', exe))
+    end
     return os.isfile(exe)
 end
 
