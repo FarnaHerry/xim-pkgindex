@@ -25,12 +25,52 @@ package = {
     xvm_enable = true,
 
     xpm = {
-        -- INTENTIONALLY ON THE HOST LOADER (same decision as code.lua). This is
-        -- a decision, not an unfinished migration, recorded so a later sweep for
-        -- host-loader payloads does not "fix" it by adding a glibc dep.
+        -- THE TOOLCHAIN AND THE GTK STACK COME FROM XLINGS.
+        --
+        -- This REPLACES an earlier decision to leave the whole stack on the
+        -- host loader, and the reversal is deliberate, so the old argument is
+        -- recorded here rather than deleted.
+        --
+        -- What it said: a UI SDK should bind the desktop the user is actually
+        -- logged into, because vendoring GTK4 under an application makes a
+        -- second, worse desktop -- its own theme, its own settings daemon, its
+        -- own input methods. That is a real cost and it is still real.
+        --
+        -- Three things outweigh it.
+        --
+        -- 1. THE PROMISE WAS ALREADY BROKEN. Upstream's README says installing
+        --    through xlings "brings the tools the SDK builds with -- CMake,
+        --    mcpp and the rest of the toolchain -- so a fresh machine needs
+        --    nothing else." This descriptor declared NO deps at all, so a
+        --    fresh machine got the SDK and then failed at the first build:
+        --        Checking for module 'gtk4>=4.14'
+        --          Package 'gtk4', required by 'virtual:world', not found
+        --    `huxerui doctor` reported the HOST's cmake. Measured on a box
+        --    with no GTK4 development packages.
+        --
+        -- 2. THE HOST BINDING WAS ALREADY NOT HAPPENING. On any machine that
+        --    has `xim:gtk4` installed for any other reason, this SDK's own
+        --    DT_NEEDED closure already resolves inside data/xpkgs --
+        --    verify-huxerui-closure.sh walks 63 objects and 230 edges and
+        --    reports exactly that. The old comment's outcome was therefore
+        --    incidental, not enforced. Declaring the deps makes it a
+        --    guarantee instead of an accident.
+        --
+        -- 3. THE OTHER BUILD PATH ALREADY CHOSE THIS. Upstream's own mcpp
+        --    manifest pins the same 36-entry closure and says "THE GTK STACK
+        --    COMES FROM XLINGS, NOT FROM THE MACHINE". Having the xlings
+        --    install disagree with the mcpp build about where GTK comes from
+        --    is the confusing state, not a safeguard.
+        --
+        -- A project that specifically wants host-desktop binding still gets
+        -- it: build with the distribution's GTK4 development packages and
+        -- CMake outside this payload, which is what cmake/platform/Linux.cmake
+        -- has always supported.
         --
         -- The DT_NEEDED closure of bin/huxerui + lib/libhuxerui.so, enumerated
-        -- from the 0.2.0 linux-x86_64 artifact with readelf:
+        -- from the 0.3.0 linux-x86_64 artifact with readelf (unchanged from
+        -- 0.2.0; re-measured at the bump by verify-huxerui-closure.sh, which
+        -- walked 63 objects and resolved all 230 edges inside data/xpkgs):
         --   glibc/gcc-runtime half:  libc.so.6, libm.so.6, libdl.so,
         --                            libstdc++.so.6, libgcc_s.so.1
         --   GTK4 desktop stack:      libgtk-4.so.1, libgdk_pixbuf-2.0.so.0,
@@ -40,30 +80,43 @@ package = {
         --                            libcairo.so.2
         --   (plus libc++_shared.so from the bundled Android runtime payload)
         --
-        -- The three sonames this comment used to call unpackaged --
-        -- libgtk-4.so.1, libgdk_pixbuf-2.0.so.0, libsoup-3.0.so.0 -- now have
-        -- packages (gtk4, gdk-pixbuf, libsoup). That closes the index gap
-        -- #749 recorded, and `.agents/tools/graphics/verify-huxerui-closure.sh`
-        -- walks this SDK's DT_NEEDED against the installed payloads to show it.
-        --
-        -- IT DOES NOT CHANGE THE DECISION HERE, and the reason is the second
-        -- half of the original argument rather than the first. Declaring only
-        -- the in-index half would move PT_INTERP into our sandbox and REMOVE
-        -- the host fallback, and more importantly a UI SDK is meant to bind
-        -- the desktop the user is actually logged into: vendoring GTK4 under
-        -- an application makes a second, worse desktop, with its own theme,
-        -- its own settings daemon and its own input methods. Availability was
-        -- never the only reason to stay on the host loader.
-        --
-        -- What the packages buy is the other consumer: a project that wants a
-        -- SEALED GTK4 build can now `xlings install gtk4` and get one, without
-        -- huxerui having to choose that for every application built on it. So
-        -- the whole payload stays on the host loader, the host stays the
-        -- provider, and the D2 dep-closure check keeps reporting these sonames
-        -- as notes rather than a failure.
+        -- Every soname above now has a package, so the closure is complete.
         linux = {
+            -- The build systems the SDK is driven with. The README promises
+            -- both come along; without them a fresh machine falls back to the
+            -- host's cmake, or has none.
+            deps = {
+                "xim:cmake",
+                "xim:mcpp",
+
+                -- DIRECT dependencies only. These are exactly the four
+                -- modules the SDK's own cmake asks pkg-config for
+                -- (HuxerUILinuxStaticDependencies.cmake), with the floors it
+                -- states; everything else in the GTK stack arrives through
+                -- them, because each xim package declares its own deps.
+                --
+                -- An earlier revision listed the whole 36-entry closure that
+                -- upstream's mcpp.toml pins. Walking the index's own dep graph
+                -- from these four reaches 48 packages and covers all 36, so 32
+                -- of those entries were restating what gtk4/glib/libsoup
+                -- already declare -- and restating a transitive pin is how a
+                -- descriptor drifts out of step with the package that owns it.
+                --
+                -- glib carries a floor because the index offers 2.80.0 as well
+                -- as 2.88.3; the other three have a single version each today.
+                "xim:gtk4@>=4.14",       -- cmake: gtk4>=4.14
+                "xim:libepoxy@>=1.5",    -- cmake: epoxy>=1.5
+                "xim:glib@>=2.88",       -- cmake: gio-2.0
+                "xim:libsoup@>=3.0",     -- cmake: libsoup-3.0>=3.0
+            },
             source = "https://github.com/HuxerUI/HuxerUI/releases/download/v${version}/huxerui-sdk-${version}-linux-${arch}.${ext}",
-            ["latest"] = { ref = "0.2.0" },
+            ["latest"] = { ref = "0.3.0" },
+            ["0.3.0"] = {
+                sha256 = {
+                    x86_64  = "5413ccd9d35d0ad50c08c67045d73cb9faff23c04005a554af0faa7a914eb916",
+                    aarch64 = "39a6529d14698cd0e168e62a6a7aae482e6914ce409feaa5d5ab524955bd1d41",
+                },
+            },
             ["0.2.0"] = {
                 sha256 = {
                     x86_64  = "f9da279919abc9f6b6a15d0115ce4a859ad9499396c5ee7ba2cb6667187a194a",
@@ -72,6 +125,13 @@ package = {
             },
         },
         macosx = {
+            -- The build systems the SDK is driven with. No GTK: the macOS
+            -- platform layer binds AppKit/Metal and friends as frameworks,
+            -- which the system SDK provides.
+            deps = {
+                "xim:cmake",
+                "xim:mcpp",
+            },
             -- xlings spells macOS `macosx`; upstream asset names spell it
             -- `macos`. Platform-scope source override absorbs the difference.
             --
@@ -80,7 +140,14 @@ package = {
             -- `${arch}` template alone would 404 on Apple Silicon. `arch_alias`
             -- maps the canonical key to upstream's spelling for this platform.
             source = "https://github.com/HuxerUI/HuxerUI/releases/download/v${version}/huxerui-sdk-${version}-macos-${arch_alias}.${ext}",
-            ["latest"] = { ref = "0.2.0" },
+            ["latest"] = { ref = "0.3.0" },
+            ["0.3.0"] = {
+                arch_alias = { x86_64 = "x86_64", aarch64 = "arm64" },
+                sha256 = {
+                    x86_64  = "8b29dffe33cdb5b496f17e6c7905725e63f0a17f5e239b6c7c4f9719ea752f95",
+                    aarch64 = "87840f81bfc88b595ea1f23b825d9078be9bd609a526ee3e9dac6ff3010a099e",
+                },
+            },
             ["0.2.0"] = {
                 arch_alias = { x86_64 = "x86_64", aarch64 = "arm64" },
                 sha256 = {
@@ -90,9 +157,21 @@ package = {
             },
         },
         windows = {
+            -- The build systems the SDK is driven with. No GTK: the Windows
+            -- backend is Win32 + Direct2D/DirectWrite, linked against the
+            -- Windows SDK.
+            deps = {
+                "xim:cmake",
+                "xim:mcpp",
+            },
             -- windows asset is a .zip; ${ext} resolves to `zip` on windows.
             source = "https://github.com/HuxerUI/HuxerUI/releases/download/v${version}/huxerui-sdk-${version}-windows-${arch}.${ext}",
-            ["latest"] = { ref = "0.2.0" },
+            ["latest"] = { ref = "0.3.0" },
+            ["0.3.0"] = {
+                sha256 = {
+                    x86_64 = "d1aca11de979070f950f16d319492d3f9fc0355d1ddbcb9bb926d79872bc2ef4",
+                },
+            },
             ["0.2.0"] = {
                 sha256 = {
                     x86_64 = "0793cd8d74ed2959ccec20af6fb5800959b9090113712e97781dbc78db9c9143",
@@ -189,11 +268,50 @@ function config()
     local idir = pkginfo.install_dir()
     local binding = package.name .. "@" .. pkginfo.version()
 
+    -- PKG_CONFIG_PATH RIDES THE SHIM, not the subos.
+    --
+    -- The deps above install the GTK stack, and each of those packages calls
+    -- `sysroot.declare_pkgconfig`, which aggregates every payload's .pc into
+    -- ONE directory: <subos>/usr/lib/pkgconfig. Nothing points pkg-config at
+    -- it, though -- a subos does not remap `/`, so the plain
+    -- /usr/bin/pkg-config inside one searches the HOST's default pc_path and
+    -- finds none of it. Verified: `xlings subos use default --cmd
+    -- 'pkg-config --modversion gtk4'` fails, with and without --sandbox.
+    --
+    -- `subos.env` would fix it only inside `xlings subos use` (mesa.lua says
+    -- so), and the documented workflow is `huxerui build linux` from an
+    -- ordinary shell. A per-shim env DOES reach that: cmake is a CHILD of this
+    -- shim and inherits it. This is the msvc.lua shape, which feeds INCLUDE
+    -- and LIB to cl the same way -- and the reason HUXERUI_HOME below is NOT
+    -- done this way still holds, because a consumer may run cmake directly,
+    -- without the shim.
+    --
+    -- `${XLINGS_DYNAMIC_SUBOS_DIR}`, NOT `system.subos_sysrootdir()`. The
+    -- spec requires a placeholder ("a literal absolute path pins the manifest
+    -- to the machine that wrote it"), and this one is resolved by the shim at
+    -- DISPATCH time rather than at install time -- graphics.lua states the
+    -- rule and `graphics.consumer_envs()` is the same construction. It matters
+    -- here because the xvm record is keyed by program and version with NO
+    -- subos dimension: baking the active subos's path at install time would
+    -- have handed every OTHER subos on the machine the wrong pkgconfig
+    -- directory, and silently.
+    --
+    -- xvm PREPENDS rather than overwrites -- measured, with a caller value:
+    --     PKG_CONFIG_PATH=/tmp/caller-marker huxerui build linux
+    --     -- PCP_SEEN=[<subos>/usr/lib/pkgconfig:/tmp/caller-marker]
+    -- so a consumer pointing at their own .pc keeps it, and a host GTK4 dev
+    -- install still wins nothing it did not already win.
+    --
+    -- Set on every platform: it is one path, harmless where nothing reads it.
+
     -- `package.name` IS one of the programs ("huxerui"), so there is no
     -- separate binding root to register -- the program node is the root, the
     -- same shape slang.lua uses. Registering both `xvm.add("huxerui")` and a
     -- bare root of the same name trips xvm-duplicate-registration.
-    xvm.add("huxerui", { bindir = path.join(idir, "bin") })
+    xvm.add("huxerui", {
+        bindir = path.join(idir, "bin"),
+        envs   = { PKG_CONFIG_PATH = "${XLINGS_DYNAMIC_SUBOS_DIR}/usr/lib/pkgconfig" },
+    })
 
     local tdir = tools_bindir(idir)
     if tdir then
