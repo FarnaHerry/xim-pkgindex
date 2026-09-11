@@ -91,7 +91,7 @@ function install()
         -- v0.1.1 only ships a per-user NSIS installer on Windows. NSIS uses
         -- /S for silent mode and /D= to select the package-owned directory.
         os.mkdir(dir)
-        system.exec(string.format(
+        os.exec(string.format(
             [[powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%s' -ArgumentList '/S','/D=%s' -Wait | Out-Null"]],
             winpath(pkginfo.install_file()), winpath(dir)))
         return os.isfile(path.join(dir, "apitab.exe"))
@@ -119,7 +119,7 @@ function uninstall()
     if is_host("windows") and pkginfo.version() == "0.1.1" then
         local uninstaller = path.join(pkginfo.install_dir(), "Uninstall.exe")
         if os.isfile(uninstaller) then
-            system.exec(string.format(
+            os.exec(string.format(
                 [[powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%s' -ArgumentList '/S' -Wait | Out-Null"]],
                 winpath(uninstaller)))
         end

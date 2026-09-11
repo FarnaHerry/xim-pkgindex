@@ -242,14 +242,15 @@ foreach ($relFile in $files) {
     Log-Info "shims before install: $($shimsBefore.Count)"
 
     $pkgSpec = "${pkgNs}:${pkg}"
+    $installSpec = $pkgSpec
     if ($latestVersion) {
-        $pkgSpec = "${pkgSpec}@${latestVersion}"
+        $installSpec = "${installSpec}@${latestVersion}"
     }
 
     # --- install ---
-    Log-Step "[$pkg] install ($pkgSpec)"
+    Log-Step "[$pkg] install ($installSpec)"
     $rc = Invoke-XlingsWithTimeout -XlingsCmd $xlingsCmd `
-              -XlingsArgs @("install", $pkgSpec, "-y") -Label "[$pkg] install"
+              -XlingsArgs @("install", $installSpec, "-y") -Label "[$pkg] install"
     if ($rc -eq 124) {
         Log-Fail "install TIMED OUT (a hook is blocking; see the tail above)"
         $failures += "$relFile (install-timeout)"
