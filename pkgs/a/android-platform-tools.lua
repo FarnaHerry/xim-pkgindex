@@ -155,6 +155,38 @@ package = {
     },
 }
 
+-- WHAT A REGIONAL `url` MAP ACTUALLY DOES, MEASURED (2026-09-11), AND WHY
+-- THIS PACKAGE STILL HAS NONE.
+--
+-- The measurement first, because it is worth keeping wherever a regional map
+-- IS used. The two-entry map is REDUNDANCY, not selection. Measured by
+-- breaking each host in turn, clearing both the store entry and the download
+-- cache between runs:
+--
+--   mirror   GLOBAL   CN     result
+--   CN       dead     live   downloaded
+--   CN       live     dead   downloaded
+--   GLOBAL   dead     live   downloaded
+--   GLOBAL   live     dead   downloaded
+--   CN       dead     dead   no download
+--
+-- So `--mirror` is at most an ordering preference: xlings reaches the other
+-- host when the preferred one fails, and only an unreachable PAIR fails the
+-- install. The last row is why the other four mean anything -- without it,
+-- "downloaded" is also what a probe that cannot detect failure prints. A CN
+-- entry therefore buys a second source for every user, not a different source
+-- for CN users.
+--
+-- AND THE LICENCE IS WHAT DECIDES WHETHER THERE CAN BE ONE. This recipe's
+-- `licenses` field is the Android Software Development Kit License Agreement,
+-- which is the same reason pkgs/i/iphoneos-sdk.lua carries no CN entry: a `CN`
+-- URL would mean xlings-res holds a copy, and holding a copy is what
+-- redistribution IS. So this stays one upstream URL, and the mirror question
+-- is a licence conclusion rather than an unfinished recipe.
+--
+-- Mirrored in this ecosystem where the licence permits it: `xim:emsdk`
+-- (MIT / NCSA) and `xim:python` (PSF) both carry regional maps.
+
 import("xim.libxpkg.pkginfo")
 import("xim.libxpkg.xvm")
 
