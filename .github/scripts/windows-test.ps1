@@ -210,6 +210,10 @@ foreach ($relFile in $files) {
     # rather than asserting specific artifacts.
     $pkgType = if ($meta.type) { $meta.type } else { "package" }
     $expectArtifacts = $pkgType -in @("package", "app", "lib")
+    $latestVersion = $null
+    if ($meta.latest -and $meta.latest.windows) {
+        $latestVersion = [string]$meta.latest.windows
+    }
 
     # --- register ---
     Log-Step "[$pkg] register (type=$pkgType)"
@@ -238,6 +242,9 @@ foreach ($relFile in $files) {
     Log-Info "shims before install: $($shimsBefore.Count)"
 
     $pkgSpec = "${pkgNs}:${pkg}"
+    if ($latestVersion) {
+        $pkgSpec = "${pkgSpec}@${latestVersion}"
+    }
 
     # --- install ---
     Log-Step "[$pkg] install ($pkgSpec)"
