@@ -19,7 +19,8 @@ from tests.lib.platform_utils import skip_if_not
 from tests.lib.xpkg_parser import parse_xpkg
 
 
-PKG = "llm-switch"
+PKG = "farnaherry:llm-switch@0.1.10"
+PROGRAM = "llm-switch"
 PKG_FILE = "pkgs/l/llm-switch.lua"
 
 
@@ -44,14 +45,14 @@ class TestStatic:
     @pytest.mark.static
     def test_release_assets_are_pinned(self, meta):
         source = meta.raw_content
-        assert '["latest"] = { ref = "0.1.4" }' in source
-        assert source.count('["0.1.4"] = {') == 3
-        assert source.count('"7c16a479854bcc8a1565518463a66d038f8ba4889ffaab5a5c9a00e86cc27207"') == 1
-        assert source.count('"e6f314855a4c9f73354f982e98e024cceb6c54b20d8868d042f22da8d3a20043"') == 1
-        assert source.count('"5b529b8fdb8a358a735527a403b3df760866e13f4f277c6480e4ac0ac7d1996c"') == 1
-        assert re.search(r"llm-switch-linux-x86_64\.tar\.gz", source)
-        assert re.search(r"llm-switch-macos-arm64\.tar\.gz", source)
-        assert re.search(r"llm-switch-windows-x86_64\.zip", source)
+        assert '["latest"] = { ref = "0.1.10" }' in source
+        assert source.count('["0.1.10"] = {') == 3
+        assert source.count('"dda934829f28989b849d1b9c9fc58835937f491d6b2aba90fe3906a5ea8dd551"') == 1
+        assert source.count('"959b3caeb8cd8ad417439ec0f9995a6f3c89cef0522971899721a96f8b331ac8"') == 1
+        assert source.count('"b892d6ad0f0f19aa15376567139740d27d5d83ce3da8fb1cf223e043a34c3c38"') == 1
+        assert re.search(r"llm-switch-v0\.1\.10-linux-x86_64\.tar\.gz", source)
+        assert re.search(r"llm-switch-v0\.1\.10-macos-arm64\.tar\.gz", source)
+        assert re.search(r"llm-switch-v0\.1\.10-windows-x86_64\.zip", source)
 
     @pytest.mark.static
     def test_no_typos(self):
@@ -95,4 +96,4 @@ class TestVerify:
     @pytest.mark.verify
     @skip_if_not("linux")
     def test_shim(self):
-        assert_xvm_shim_exists(PKG)
+        assert_xvm_shim_exists(PROGRAM)

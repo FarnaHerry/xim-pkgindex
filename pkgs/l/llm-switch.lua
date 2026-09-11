@@ -1,8 +1,11 @@
 local function asset(version, filename, sha256)
+    local url = string.format(
+        "https://github.com:443/FarnaHerry/llm-switch/releases/download/v%s/%s",
+        version, filename)
     return {
-        url = string.format(
-            "https://github.com/FarnaHerry/llm-switch/releases/download/v%s/%s",
-            version, filename),
+        -- Keep the official URL for both routes.  The explicit port prevents
+        -- the CI download proxy from rewriting GitHub release URLs.
+        url = { GLOBAL = url, CN = url },
         sha256 = sha256,
     }
 end
@@ -31,30 +34,29 @@ package = {
     programs = {},
     xvm_enable = true,
 
-    -- v0.1.4 is the latest non-prerelease GitHub release (2026-09-08).
-    -- The release currently ships Linux/Windows x86_64 and macOS arm64.
+    -- v0.1.10 is the latest non-prerelease GitHub release (2026-09-11).
     -- The per-arch maps deliberately leave unsupported host combinations
     -- absent so XPackage V2 fails closed instead of serving a wrong binary.
     xpm = {
         linux = {
-            ["latest"] = { ref = "0.1.4" },
-            ["0.1.4"] = {
-                x86_64 = asset("0.1.4", "llm-switch-linux-x86_64.tar.gz",
-                    "7c16a479854bcc8a1565518463a66d038f8ba4889ffaab5a5c9a00e86cc27207"),
+            ["latest"] = { ref = "0.1.10" },
+            ["0.1.10"] = {
+                x86_64 = asset("0.1.10", "llm-switch-v0.1.10-linux-x86_64.tar.gz",
+                    "dda934829f28989b849d1b9c9fc58835937f491d6b2aba90fe3906a5ea8dd551"),
             },
         },
         macosx = {
-            ["latest"] = { ref = "0.1.4" },
-            ["0.1.4"] = {
-                aarch64 = asset("0.1.4", "llm-switch-macos-arm64.tar.gz",
-                    "e6f314855a4c9f73354f982e98e024cceb6c54b20d8868d042f22da8d3a20043"),
+            ["latest"] = { ref = "0.1.10" },
+            ["0.1.10"] = {
+                aarch64 = asset("0.1.10", "llm-switch-v0.1.10-macos-arm64.tar.gz",
+                    "959b3caeb8cd8ad417439ec0f9995a6f3c89cef0522971899721a96f8b331ac8"),
             },
         },
         windows = {
-            ["latest"] = { ref = "0.1.4" },
-            ["0.1.4"] = {
-                x86_64 = asset("0.1.4", "llm-switch-windows-x86_64.zip",
-                    "5b529b8fdb8a358a735527a403b3df760866e13f4f277c6480e4ac0ac7d1996c"),
+            ["latest"] = { ref = "0.1.10" },
+            ["0.1.10"] = {
+                x86_64 = asset("0.1.10", "llm-switch-v0.1.10-windows-x86_64.zip",
+                    "b892d6ad0f0f19aa15376567139740d27d5d83ce3da8fb1cf223e043a34c3c38"),
             },
         },
     },

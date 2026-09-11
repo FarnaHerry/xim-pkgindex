@@ -21,7 +21,8 @@ from tests.lib.platform_utils import skip_if_not
 from tests.lib.xpkg_parser import parse_xpkg
 
 
-PKG = "apitab"
+PKG = "farnaherry:apitab@0.1.1"
+PROGRAM = "apitab"
 PKG_FILE = "pkgs/a/apitab.lua"
 
 
@@ -46,14 +47,14 @@ class TestStatic:
     @pytest.mark.static
     def test_release_assets_are_pinned(self, meta):
         source = meta.raw_content
-        assert '["latest"] = { ref = "0.1.0" }' in source
-        assert source.count('["0.1.0"] = {') == 3
-        assert source.count('"1d241798a15e87a4071daa0f702e6284d8dec16e38422f4b10bc323aba7d3429"') == 1
-        assert source.count('"0dc7f5e56b33393042e62c5d86323febed35b8890526b54667ac25a4cbdb5948"') == 1
-        assert source.count('"9ed24a27c36bcddce146b7f75205302c8a9f11cebea91977207cf55874e5325f"') == 1
-        assert re.search(r"apitab-v0\.1\.0-linux-x86_64\.tar\.gz", source)
-        assert re.search(r"apitab-v0\.1\.0-macos-arm64\.tar\.gz", source)
-        assert re.search(r"apitab-v0\.1\.0-windows-x86_64\.zip", source)
+        assert '["latest"] = { ref = "0.1.1" }' in source
+        assert source.count('["0.1.1"] = {') == 3
+        assert source.count('"af73459e6b404d209852d5ea126bcb074f8182a1e697f5bc374dbf4365bc6d0c"') == 1
+        assert source.count('"41c1aee1cc32207fda2ab2274a4a834cf78705f5e93b8072ddbd644f2d9697fd"') == 1
+        assert source.count('"3982acdcee90b7b9af378c5386d4f0b8bb121cf40b1d7511d79b368b7d770c5c"') == 1
+        assert re.search(r"apitab-v0\.1\.1-linux-x86_64\.tar\.gz", source)
+        assert re.search(r"apitab-v0\.1\.1-macos-arm64\.tar\.gz", source)
+        assert re.search(r"apitab-v0\.1\.1-windows-x86_64-setup\.exe", source)
 
     @pytest.mark.static
     def test_no_typos(self):
@@ -100,4 +101,4 @@ class TestVerify:
     @pytest.mark.verify
     @skip_if_not("linux")
     def test_shim(self):
-        assert_xvm_shim_exists(PKG)
+        assert_xvm_shim_exists(PROGRAM)

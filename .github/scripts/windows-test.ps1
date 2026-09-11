@@ -210,6 +210,10 @@ foreach ($relFile in $files) {
     # rather than asserting specific artifacts.
     $pkgType = if ($meta.type) { $meta.type } else { "package" }
     $expectArtifacts = $pkgType -in @("package", "app", "lib")
+    $latestVersion = $null
+    if ($meta.latest -and $meta.latest.windows) {
+        $latestVersion = [string]$meta.latest.windows
+    }
 
     # --- register ---
     Log-Step "[$pkg] register (type=$pkgType)"
@@ -238,11 +242,15 @@ foreach ($relFile in $files) {
     Log-Info "shims before install: $($shimsBefore.Count)"
 
     $pkgSpec = "${pkgNs}:${pkg}"
+    $installSpec = $pkgSpec
+    if ($latestVersion) {
+        $installSpec = "${installSpec}@${latestVersion}"
+    }
 
     # --- install ---
-    Log-Step "[$pkg] install ($pkgSpec)"
+    Log-Step "[$pkg] install ($installSpec)"
     $rc = Invoke-XlingsWithTimeout -XlingsCmd $xlingsCmd `
-              -XlingsArgs @("install", $pkgSpec, "-y") -Label "[$pkg] install"
+              -XlingsArgs @("install", $installSpec, "-y") -Label "[$pkg] install"
     if ($rc -eq 124) {
         Log-Fail "install TIMED OUT (a hook is blocking; see the tail above)"
         $failures += "$relFile (install-timeout)"
