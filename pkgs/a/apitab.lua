@@ -91,9 +91,12 @@ function install()
         -- v0.1.1 only ships a per-user NSIS installer on Windows. NSIS uses
         -- /S for silent mode and /D= to select the package-owned directory.
         os.mkdir(dir)
-        os.exec(string.format(
-            [[powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%s' -ArgumentList '/S','/D=%s' -Wait | Out-Null"]],
-            winpath(pkginfo.install_file()), winpath(dir)))
+        local exe = winpath(path.join(dir, "apitab.exe"))
+        local uninstaller = winpath(path.join(dir, "Uninstall.exe"))
+        os.exec(string.format([[
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $p=Start-Process -FilePath '%s' -ArgumentList '/S','/D=%s' -PassThru; $deadline=(Get-Date).AddSeconds(120); while ((-not (Test-Path -LiteralPath '%s')) -or (-not (Test-Path -LiteralPath '%s'))) { if ($p.HasExited) { break }; if ((Get-Date) -ge $deadline) { try { Stop-Process -Id $p.Id -Force } catch {}; throw 'apitab installer timeout' }; Start-Sleep -Milliseconds 250 }; if ((-not (Test-Path -LiteralPath '%s')) -or (-not (Test-Path -LiteralPath '%s'))) { throw 'apitab installer did not produce expected files' }; if (-not $p.HasExited) { try { Stop-Process -Id $p.Id -Force } catch {} }"]],
+            winpath(pkginfo.install_file()), winpath(dir), exe, uninstaller,
+            exe, uninstaller))
         return os.isfile(path.join(dir, "apitab.exe"))
     end
 
