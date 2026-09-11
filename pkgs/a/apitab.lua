@@ -36,9 +36,9 @@ package = {
     xvm_enable = true,
 
     -- v0.1.1 is the latest non-prerelease GitHub release (2026-09-11).
-    -- Linux and macOS publish portable archives. Windows publishes an NSIS
-    -- installer, so its install hook below runs that installer into the
-    -- xlings package directory.
+    -- Linux and macOS publish portable archives. Windows publishes a WiX Burn
+    -- bundle whose HuxerUI bootstrapper is interactive, so the install hook
+    -- below extracts its embedded MSI and runs that MSI silently.
     xpm = {
         linux = {
             ["latest"] = { ref = "0.1.1" },
@@ -88,15 +88,15 @@ function install()
     os.tryrm(dir)
 
     if is_host("windows") and pkginfo.version() == "0.1.1" then
-        -- v0.1.1 only ships a per-user NSIS installer on Windows. NSIS uses
-        -- /S for silent mode and /D= to select the package-owned directory.
+        -- The release setup is a WiX Burn bundle with an interactive HuxerUI
+        -- bootstrapper. Its embedded MSI is the package payload we need here;
+        -- extract the second CAB in the bundle and invoke msiexec directly so
+        -- xlings can install without a desktop prompt.
         os.mkdir(dir)
         local exe = winpath(path.join(dir, "apitab.exe"))
-        local uninstaller = winpath(path.join(dir, "Uninstall.exe"))
         os.exec(string.format([[
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $p=Start-Process -FilePath '%s' -ArgumentList '/S','/D=%s' -PassThru; $deadline=(Get-Date).AddSeconds(120); while ((-not (Test-Path -LiteralPath '%s')) -or (-not (Test-Path -LiteralPath '%s'))) { if ($p.HasExited) { break }; if ((Get-Date) -ge $deadline) { try { Stop-Process -Id $p.Id -Force } catch {}; throw 'apitab installer timeout' }; Start-Sleep -Milliseconds 250 }; if ((-not (Test-Path -LiteralPath '%s')) -or (-not (Test-Path -LiteralPath '%s'))) { throw 'apitab installer did not produce expected files' }; if (-not $p.HasExited) { try { Stop-Process -Id $p.Id -Force } catch {} }"]],
-            winpath(pkginfo.install_file()), winpath(dir), exe, uninstaller,
-            exe, uninstaller))
+ Powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $setup='%s'; $dir='%s'; $stage=Join-Path ([IO.Path]::GetTempPath()) ('apitab-'+[guid]::NewGuid().ToString('N')); $inner=Join-Path $stage 'apitab-msi.cab'; $extract=Join-Path $stage 'payload'; New-Item -ItemType Directory -Path $extract -Force | Out-Null; try { $bytes=[IO.File]::ReadAllBytes($setup); $hits=0; $offset=-1; for ($pos=0; $pos -lt $bytes.Length-3; ) { $pos=[Array]::IndexOf($bytes,[byte]0x4d,$pos); if ($pos -lt 0) { break }; if ($bytes[$pos+1] -eq 0x53 -and $bytes[$pos+2] -eq 0x43 -and $bytes[$pos+3] -eq 0x46) { $hits++; if ($hits -eq 2) { $offset=$pos; break } }; $pos++ }; if ($offset -lt 0) { throw 'apitab setup does not contain its embedded MSI container' }; $source=[IO.File]::OpenRead($setup); try { $source.Seek($offset,[IO.SeekOrigin]::Begin) | Out-Null; $target=[IO.File]::Create($inner); try { $source.CopyTo($target) } finally { $target.Dispose() } } finally { $source.Dispose() }; $expand=Join-Path $env:SystemRoot 'System32\expand.exe'; & $expand '-F:*' $inner $extract; if ($LASTEXITCODE -ne 0) { throw ('failed to extract apitab MSI (exit code {0})' -f $LASTEXITCODE) }; $msi=Join-Path $extract 'a0'; if (-not (Test-Path -LiteralPath $msi)) { throw 'apitab setup did not yield an MSI payload' }; $msiexec=Join-Path $env:SystemRoot 'System32\msiexec.exe'; $p=Start-Process -FilePath $msiexec -ArgumentList @('/i',$msi,'/qn','/norestart',('INSTALLFOLDER={0}' -f $dir),'CREATE_DESKTOP_SHORTCUT=0') -PassThru -Wait; if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw ('apitab MSI install failed (exit code {0})' -f $p.ExitCode) }; $deadline=(Get-Date).AddSeconds(30); while (-not (Test-Path -LiteralPath '%s')) { if ((Get-Date) -ge $deadline) { throw 'apitab MSI did not produce apitab.exe' }; Start-Sleep -Milliseconds 250 } } finally { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue }" ]],
+            winpath(pkginfo.install_file()), winpath(dir), exe))
         return os.isfile(path.join(dir, "apitab.exe"))
     end
 
@@ -120,12 +120,12 @@ end
 function uninstall()
     xvm.remove(package.name)
     if is_host("windows") and pkginfo.version() == "0.1.1" then
-        local uninstaller = path.join(pkginfo.install_dir(), "Uninstall.exe")
-        if os.isfile(uninstaller) then
-            os.exec(string.format(
-                [[powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%s' -ArgumentList '/S' -Wait | Out-Null"]],
-                winpath(uninstaller)))
-        end
+        -- The MSI is installed directly because the release bundle's custom
+        -- bootstrapper has no unattended install path. Remove that MSI by its
+        -- registered product code before xlings removes the payload directory.
+        os.exec(string.format([[
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $roots=@('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'); $entry=Get-ItemProperty -Path $roots -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq 'apitab' -and $_.DisplayVersion -eq '%s' } | Select-Object -First 1; if ($entry -and $entry.PSChildName -match '^\{[0-9A-Fa-f-]+\}$') { $msiexec=Join-Path $env:SystemRoot 'System32\msiexec.exe'; $p=Start-Process -FilePath $msiexec -ArgumentList @('/x',$entry.PSChildName,'/qn','/norestart') -PassThru -Wait; if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw ('apitab MSI uninstall failed (exit code {0})' -f $p.ExitCode) } }" ]],
+            pkginfo.version()))
     end
     return true
 end
