@@ -38,17 +38,13 @@ package = {
     -- v0.1.1 is the latest non-prerelease GitHub release (2026-09-11).
     -- Linux and macOS publish portable archives. Windows publishes an NSIS
     -- installer, so its install hook below runs that installer into the
-    -- xlings package directory instead of falling back to the old release.
+    -- xlings package directory.
     xpm = {
         linux = {
             ["latest"] = { ref = "0.1.1" },
             ["0.1.1"] = {
                 x86_64 = asset("0.1.1", "apitab-v0.1.1-linux-x86_64.tar.gz",
                     "af73459e6b404d209852d5ea126bcb074f8182a1e697f5bc374dbf4365bc6d0c"),
-            },
-            ["0.1.0"] = {
-                x86_64 = asset("0.1.0", "apitab-v0.1.0-linux-x86_64.tar.gz",
-                    "1d241798a15e87a4071daa0f702e6284d8dec16e38422f4b10bc323aba7d3429"),
             },
         },
         macosx = {
@@ -57,20 +53,12 @@ package = {
                 aarch64 = asset("0.1.1", "apitab-v0.1.1-macos-arm64.tar.gz",
                     "41c1aee1cc32207fda2ab2274a4a834cf78705f5e93b8072ddbd644f2d9697fd"),
             },
-            ["0.1.0"] = {
-                aarch64 = asset("0.1.0", "apitab-v0.1.0-macos-arm64.tar.gz",
-                    "0dc7f5e56b33393042e62c5d86323febed35b8890526b54667ac25a4cbdb5948"),
-            },
         },
         windows = {
             ["latest"] = { ref = "0.1.1" },
             ["0.1.1"] = {
                 x86_64 = asset("0.1.1", "apitab-v0.1.1-windows-x86_64-setup.exe",
                     "3982acdcee90b7b9af378c5386d4f0b8bb121cf40b1d7511d79b368b7d770c5c"),
-            },
-            ["0.1.0"] = {
-                x86_64 = asset("0.1.0", "apitab-v0.1.0-windows-x86_64.zip",
-                    "9ed24a27c36bcddce146b7f75205302c8a9f11cebea91977207cf55874e5325f"),
             },
         },
     },
