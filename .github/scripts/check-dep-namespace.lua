@@ -73,6 +73,9 @@ local ROOT = "."
 -- to be empty most of the time.
 local EXEMPT = {
     -- ["pkgs/g/godot.lua"] = { ["graphics"] = "#540, remove once published" },
+    ["pkgs/luban/labwc.lua"] = { ["cursors"] = "#1001, luban:cursors is new here; remove once published" },
+    ["pkgs/luban/luban-os.lua"] = { ["cursors"] = "#1001, luban:cursors is new here; remove once published" },
+    ["pkgs/luban/xdesk.lua"] = { ["cursors"] = "#1001, luban:cursors is new here; remove once published" },
 }
 
 local function is_exempt(file, name)
@@ -88,8 +91,9 @@ end
 --
 -- "Published" is decidable: the exempted package's recipe exists on the
 -- branch this change is measured against. The wrapper passes that ref in
--- DEP_NS_BASE_REF -- the PR's base on pull_request, HEAD~1 on push, which
--- is main-before-this-merge for a squash. On the PR that ADDS the package
+-- DEP_NS_BASE_REF -- the PR's base on pull_request (main on a push to any
+-- other branch), HEAD~1 on a push to main, which is main-before-this-merge
+-- for a squash. On the PR that ADDS the package
 -- the recipe is absent from the base, so the exemption holds; on any later
 -- change it is present, and the exemption fails with the fix spelled out.
 --
