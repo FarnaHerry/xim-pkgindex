@@ -21,6 +21,7 @@
 #   tmux          a static tmux (musl; libevent, ncurses) and the terminfo it needs
 #   htop          a static htop (musl; ncurses) and the terminfo it needs
 #   procps-ng     static ps, top, free, pgrep, pkill, pidof, uptime, vmstat, watch (musl; ncurses) and terminfo
+#   sudo          a static sudo and visudo (musl; no PAM, sudoers built in)
 #   wl-clipboard  static wl-copy / wl-paste (musl; libwayland built static)
 #   xsel          a static xsel (musl; libX11/xcb static)
 #   edk2-firmware the UEFI firmware qemu ships, decompressed (no build)
@@ -29,9 +30,11 @@
 #   foot          luban:foot, a terminal, as a component tree (Alpine 3.24; bundle below)
 #   xwayland      luban:xwayland, X11 programs on Wayland, built without glamor and GLX
 #   labwc         luban:labwc, the labwc desktop, on a wlroots built with pixman alone
+#   audio         luban:audio: PipeWire, WirePlumber, pipewire-pulse and the luban sink
 #   qt-runtime    luban:qt-runtime, the Qt the Qt desktops share (Qt 6, mesa, their libraries; no programs)
 #   lxqt          luban:lxqt, LXQt on luban:labwc, its libraries beyond the Qt runtime's
 #   kde           luban:kde, KDE Plasma nested in luban:labwc, all it brings beyond the Qt runtime (preview)
+#   falkon        luban:falkon, the browser of every Luban desktop (Falkon on QtWebEngine), on the Qt runtime
 #   bash          bash on glibc (the shape x86_64's is)
 #   coreutils     coreutils on glibc
 #   openssl       openssl on glibc, lib64
@@ -484,6 +487,30 @@ procps-ng)
     [[ -f "$work/$d/share/terminfo/x/xterm-256color" ]] || die "no xterm-256color terminfo"
     provenance "$d" "procps-ng $version (sourceforge.net/projects/procps-ng, sha256 $(input procps-ng "$version")): $progs; static (ncursesw), terminfo for: $terms; Alpine 3.20 (musl)"
     pack "$d" ;;
+sudo)
+    # sudo for a Luban system (xlings design 2026-10-20 §4.5): static (musl),
+    # no PAM -- it reads the system's /etc/shadow -- its sudoers policy built
+    # in (no plugin to load), no mail, no log server, no noexec library.
+    # The recipe makes bin/sudo setuid; a machine makes it root's at boot.
+    source_of sudo "$version" "https://www.sudo.ws/dist/sudo-$version.tar.gz" "$work/src.tar.gz"
+    d="sudo-$version-linux-$arch"
+    alpine "apk add -q $APK_STATIC \
+        && tar -xzf src.tar.gz && cd sudo-$version \
+        && ./configure -q --prefix=/usr --sysconfdir=/etc --localstatedir=/var --runstatedir=/run \
+             --without-pam --disable-shared --enable-static-sudoers --disable-nls --without-sendmail \
+             --disable-root-mailer --with-rundir=/run/sudo --with-vardir=/var/db/sudo --with-env-editor \
+             --disable-log-server --disable-log-client --without-ldap --without-noexec --disable-intercept \
+             --with-timeout=15 --without-lecture --enable-tmpfiles.d=no --disable-pie >/dev/null \
+        && make -s -j\$(nproc) LDFLAGS=-all-static >/dev/null && make -s install DESTDIR=/w/stage LDFLAGS=-all-static >/dev/null \
+        && mkdir -p /w/$d/bin /w/$d/sbin \
+        && cp /w/stage/usr/bin/sudo /w/$d/bin/sudo && strip /w/$d/bin/sudo && ln -s sudo /w/$d/bin/sudoedit \
+        && cp /w/stage/usr/sbin/visudo /w/$d/sbin/visudo && strip /w/$d/sbin/visudo"
+    static_only "$work/$d/bin/sudo" "$work/$d/sbin/visudo"
+    grep -aq "$version" "$work/$d/bin/sudo" || die "bin/sudo does not carry $version"
+    printf 'root ALL=(ALL:ALL) ALL\n%%wheel ALL=(ALL:ALL) ALL\n' > "$work/sudoers.check"
+    "$work/$d/sbin/visudo" -c -q -f "$work/sudoers.check" || die "visudo does not accept a plain sudoers"
+    provenance "$d" "sudo $version (www.sudo.ws, sha256 $(input sudo "$version")): static (musl), no PAM (shadow), sudoers built in; Alpine 3.20"
+    pack "$d" ;;
 wl-clipboard)
     source_of wl-clipboard "$version" "https://github.com/bugaevc/wl-clipboard/archive/refs/tags/v$version.tar.gz" "$work/src.tar.gz"
     wv="$(awk '$1 == "wayland" { print $2 }' "$here/inputs.txt")"
@@ -822,6 +849,65 @@ labwc)
     rm -f "$work/shot.ppm"
     provenance "$d" "luban:labwc $version: Alpine 3.24 $(grep -E '^(labwc|yambar|fuzzel|swaybg|grim)-[0-9]' "$work/installed" | tr '\n' ' ')-- with wlroots $wv (gitlab.freedesktop.org, sha256 $(input wlroots "$wv")) configured as Alpine's APKBUILD but -Drenderers= -Dallocators= (pixman only); the musl loader and the libraries they link private (libexec/labwc), run through bin/<program>; configuration, the session and xdg-terminal-exec from xim-pkgindex tools/res/labwc and tools/res/bundle; a headless session in Debian 12 drew its background and panel"
     pack "$d" ;;
+audio)
+    # luban:audio: a Luban desktop's sound (xlings design 2026-10-20 §20.1)
+    # -- PipeWire, WirePlumber and pipewire-pulse, as Alpine lays them out
+    # under /usr (lib/pipewire-0.3, lib/spa-0.2, lib/wireplumber-0.5,
+    # share/pipewire, share/wireplumber: a root projects lib/<dir> and share
+    # where the programs look), the programs' libraries and the musl loader
+    # private (libexec/audio). Its own: the `luban` sink (share/pipewire/
+    # pipewire.conf.d/luban.conf: a pipe-tunnel into /tmp/luban-audio.pcm,
+    # 48 kHz stereo, the default output), which `luban __audio` reads and the
+    # Luban OS window plays; bin/luban-audio, which starts the three for a
+    # session (a Luban desktop's session runs it: opensal-wlr's run_session).
+    # What a machine's sound never uses is left out: video (Vulkan, cameras,
+    # V4L2), Bluetooth, JACK and the network streams -- Vulkan alone brought
+    # Mesa and LLVM (235 MB).
+    v="${version%%-r[0-9]*}"; d="audio-$version-linux-$arch"
+    progs="/usr/bin/pipewire /usr/bin/pipewire-pulse /usr/bin/wireplumber /usr/bin/pw-cat /usr/bin/pw-cli /usr/bin/wpctl /usr/bin/pactl"
+    bundle audio "$d" "$progs" \
+        "apk add -q pipewire pipewire-pulse wireplumber pipewire-tools pulseaudio-utils \
+         && rm -rf /usr/lib/spa-0.2/vulkan /usr/lib/spa-0.2/libcamera /usr/lib/spa-0.2/v4l2 /usr/lib/spa-0.2/bluez5 \
+                   /usr/lib/spa-0.2/jack /usr/lib/spa-0.2/avb /usr/lib/spa-0.2/videoconvert /usr/lib/spa-0.2/videotestsrc \
+                   /usr/lib/spa-0.2/ffmpeg /usr/lib/spa-0.2/aec \
+         && cd /usr/lib/pipewire-0.3 && rm -f libpipewire-module-roc-* libpipewire-module-x11-bell.so libpipewire-module-jack* \
+                   libpipewire-module-raop-* libpipewire-module-zeroconf-* libpipewire-module-avb.so libpipewire-module-rtp-* \
+                   libpipewire-module-vban-* libpipewire-module-echo-cancel.so libpipewire-module-snapcast-* \
+                   libpipewire-module-netjack2-* libpipewire-module-ffado-* && cd / \
+         && mkdir -p /w/extra/lib /w/extra/share /w/extra/licenses \
+         && cp -a /usr/lib/pipewire-0.3 /usr/lib/spa-0.2 /usr/lib/wireplumber-0.5 /w/extra/lib/ \
+         && cp -a /usr/share/pipewire /usr/share/wireplumber /w/extra/share/ \
+         && { [ ! -d /usr/share/spa-0.2 ] || cp -a /usr/share/spa-0.2 /w/extra/share/; } \
+         && for p in pipewire wireplumber pulseaudio-utils; do [ -d /usr/share/licenses/\$p ] && cp -r /usr/share/licenses/\$p /w/extra/licenses/ || true; done" \
+        "\$(find /usr/lib/pipewire-0.3 /usr/lib/spa-0.2 /usr/lib/wireplumber-0.5 -name '*.so')"
+    bundle_upstream pipewire "$v"
+    mkdir -p "$work/$d/lib" "$work/$d/share"
+    cp -a "$work/extra/lib/." "$work/$d/lib/"
+    cp -a "$work/extra/share/." "$work/$d/share/"
+    cp -a "$work/extra/licenses/." "$work/$d/share/licenses/"
+    rm -rf "$work/extra"
+    # The modules name no loader and no search path of their own (a root
+    # checks every ELF it holds: Alpine's say /usr/lib/pipewire-0.3); they
+    # find their libraries through the program's.
+    python3 "$here/bundle/no-interp.py" "$work/$d/lib" >/dev/null
+    ALPINE_IMAGE="$ALPINE_DESKTOP" alpine "apk add -q patchelf && sh /w/strip-rpath.sh /w/$d/lib"
+    # It plays into the `luban` sink, the default: what is played comes out of the pipe.
+    headless "$d" "head -c 192000 /dev/urandom > /w/noise.raw \
+        && { ./bin/luban-audio >/w/session.log 2>&1 & } \
+        && for i in \$(seq 1 50); do [ -S /tmp/rt/pulse/native ] && break; sleep 0.2; done \
+        && for i in \$(seq 1 25); do [ -p /tmp/luban-audio.pcm ] && break; sleep 0.2; done \
+        && { cat /tmp/luban-audio.pcm > /w/got.pcm & } && sleep 1 \
+        && ./bin/pactl get-default-sink > /w/default-sink 2>&1 \
+        && timeout 10 ./bin/pw-cat -p --raw --format s16 --rate 48000 --channels 2 /w/noise.raw \
+        && sleep 1 && wc -c < /w/got.pcm > /w/got-size"
+    grep -qx luban "$work/default-sink" || die "the default output is not the luban sink: $(cat "$work/default-sink")"
+    [[ "$(cat "$work/got-size")" -ge 96000 ]] || die "the luban sink's pipe had $(cat "$work/got-size") bytes of 192000 played"
+    ! find "$work/$d/lib" -name '*.so' -exec sh -c 'readelf -d "$1" | grep -Eq "R(UN)?PATH"' _ {} \; -print | grep -q . \
+        || die "a module still names a search path"
+    ! grep -Eq 'libLLVM|libgallium|libvulkan' "$work/libs" || die "luban:audio links GL or Vulkan: $(grep -E 'libLLVM|libgallium|libvulkan' "$work/libs" | tr '\n' ' ')"
+    rm -f "$work/noise.raw" "$work/got.pcm"
+    provenance "$d" "luban:audio $version: Alpine 3.24 $(grep -E '^(pipewire|pipewire-pulse|wireplumber|pipewire-tools|pulseaudio-utils)-[0-9]' "$work/installed" | tr '\n' ' ')-- the musl loader and the libraries they link private (libexec/audio), run through bin/<program>; lib/pipewire-0.3, lib/spa-0.2, lib/wireplumber-0.5 and share/ as Alpine has them; the luban sink and luban-audio from xim-pkgindex tools/res/audio; in Debian 12 noise played into the default sink came out of its pipe"
+    pack "$d" ;;
 terminfo)
     # The terminal descriptions a root has (xlings design 2026-10-16 L §10):
     # ncurses' terminfo.src at a snapshot, compiled whole with tic, plus the
@@ -1003,10 +1089,10 @@ lxqt)
     progs="/usr/bin/lxqt-session /usr/bin/lxqt-panel /usr/bin/lxqt-runner /usr/bin/lxqt-config /usr/bin/lxqt-config-appearance \
         /usr/bin/lxqt-config-session /usr/bin/lxqt-config-input /usr/bin/lxqt-config-monitor /usr/bin/lxqt-notificationd \
         /usr/bin/lxqt-about /usr/bin/lxqt-leave /usr/bin/pcmanfm-qt /usr/bin/dbus-daemon /usr/bin/dbus-run-session \
-        /usr/bin/dbus-update-activation-environment /usr/bin/xdg-user-dirs-update"
+        /usr/bin/dbus-update-activation-environment /usr/bin/xdg-user-dirs-update /usr/bin/qterminal"
     cp "$here/qt-runtime/tree.sh" "$here/qt-runtime/desktop.sh" "$here/bundle/strip-rpath.sh" "$work/"
     carried="lxqt-session lxqt-panel lxqt-runner lxqt-config lxqt-notificationd lxqt-about lxqt-qtplugin lxqt-themes lxqt-menu-data \
-        liblxqt libqtxdg libfm-qt pcmanfm-qt breeze-icons hicolor-icon-theme dbus xdg-user-dirs"
+        liblxqt libqtxdg libfm-qt pcmanfm-qt breeze-icons hicolor-icon-theme dbus xdg-user-dirs qterminal qtermwidget"
     ALPINE_IMAGE="$ALPINE_DESKTOP" alpine "apk add -q $QT_RUNTIME_APKS $carried layer-shell-qt \
         && apk info -v 2>/dev/null | sort > /w/installed \
         && mkdir -p /w/$d/lib && cp -a /usr/lib/lxqt-panel /w/$d/lib/ \
@@ -1018,6 +1104,29 @@ lxqt)
     bundle_upstream qt6-qtbase "${QT_RUNTIME%%-r[0-9]*}"
     cp -r "$here/lxqt/." "$work/$d/"
     mv "$work/$d/env" "$work/$d/libexec/lxqt/env"
+    # Its defaults for a Luban system (xlings design 2026-10-20 G24-G26): the
+    # desktop shows Home and Trash (Computer and Network need gvfs, which a
+    # system has not); the panel's quick launch holds the terminal, the file
+    # manager and the browser instead of "Drop application icons here"; the
+    # terminal everything opens is qterminal, carried (the desktop's menu
+    # named it, and it was not there).
+    python3 - "$work/$d" <<'PY'
+import re, sys
+from pathlib import Path
+tree = Path(sys.argv[1])
+fm = tree / "share/pcmanfm-qt/lxqt/settings.conf"
+text = fm.read_text()
+text = re.sub(r"(?m)^DesktopShortcuts=.*$", "DesktopShortcuts=Home, Trash", text)
+assert "DesktopShortcuts=Home, Trash" in text and "Terminal=qterminal" in text, "pcmanfm-qt's settings changed shape"
+fm.write_text(text)
+panel = tree / "etc/xdg/lxqt/panel.conf"
+text = panel.read_text()
+apps = ["qterminal.desktop", "pcmanfm-qt.desktop", "org.kde.falkon.desktop"]
+entries = "".join(f"apps\\{k}\\desktop=/usr/share/applications/{a}\n" for k, a in enumerate(apps, 1)) + f"apps\\size={len(apps)}\n"
+assert text.count("[quicklaunch]\n") == 1, "lxqt-panel's panel.conf has no [quicklaunch]"
+text = text.replace("[quicklaunch]\n", "[quicklaunch]\n" + entries)
+panel.write_text(text)
+PY
     # Its programs keep their interpreter: the recipe's config() names this
     # tree's loader and library directories in them where it is installed (a
     # Qt program reads /proc/self/exe; LXQt's panel takes no theme run by a
@@ -1056,6 +1165,41 @@ lxqt)
     [[ "$(px 600 710)" != "$(px 600 680)" ]] || shot_die "the panel is not drawn"
     provenance "$d" "luban:lxqt $version: Alpine 3.24 $(grep -E '^(lxqt-session|lxqt-panel|pcmanfm-qt|liblxqt|layer-shell-qt|breeze-icons|dbus)-[0-9]' "$work/installed" | tr '\n' ' ')-- on luban:qt-runtime $QT_RUNTIME (the same Qt, checked); the libraries beyond the runtime's and the musl loader private (libexec/lxqt), lxqt-panel's plugins in lib/lxqt-panel; the session, defaults and checks from xim-pkgindex tools/res/lxqt; a headless session on luban:labwc in Debian 12 drew its panel. Sources: https://github.com/lxqt and Alpine's aports, unmodified"
     pack "$d" ;;
+falkon)
+    # luban:falkon: the browser every Luban desktop carries (xlings design
+    # 2026-10-20 §20.2): KDE's Falkon on QtWebEngine, on luban:qt-runtime
+    # ($QT_RUNTIME) as the Qt desktops are, the libraries beyond the
+    # runtime's (QtWebEngine's Chromium, nss) private in libexec/falkon.
+    # QtWebEngineProcess beside the program; its resources and locales in
+    # share/qt6, which libexec/falkon/env names (QTWEBENGINE_*).
+    v="${version%%-r[0-9]*}"; d="falkon-$version-linux-$arch"
+    progs="/usr/bin/falkon /usr/lib/qt6/libexec/QtWebEngineProcess"
+    carried="falkon qt6-qtwebengine"
+    cp "$here/qt-runtime/tree.sh" "$here/qt-runtime/desktop.sh" "$here/bundle/strip-rpath.sh" "$work/"
+    ALPINE_IMAGE="$ALPINE_DESKTOP" alpine "apk add -q $QT_RUNTIME_APKS $carried \
+        && apk info -v 2>/dev/null | sort > /w/installed \
+        && sh /w/desktop.sh /w/$d falkon \"$QT_RUNTIME_APKS\" \"$progs\" \"$carried\" \
+        && apk add -q patchelf && sh /w/strip-rpath.sh /w/$d/libexec/falkon /w/$d/lib /w/rt-root/libexec/qt-runtime"
+    bundle_upstream falkon "$v"
+    bundle_upstream qt6-qtbase "${QT_RUNTIME%%-r[0-9]*}"
+    cp -r "$here/falkon/." "$work/$d/"
+    mv "$work/$d/env" "$work/$d/libexec/falkon/env"
+    [[ -d "$work/$d/share/qt6/resources" ]] || die "falkon: no QtWebEngine resources in share/qt6/resources"
+    python3 "$here/bundle/no-interp.py" "$work/$d/libexec/falkon/lib" "$work/$d/libexec/falkon/plugins" >/dev/null
+    sed -e "s/@NAME@/falkon/g" -e "s/@PROG@/falkon/g" "$here/bundle/run-direct.in" > "$work/$d/bin/falkon"
+    chmod 755 "$work/$d/bin/falkon"
+    log "falkon: $(ls "$work/$d/libexec/falkon/lib" | wc -l) libraries of its own, $(du -sh "$work/$d" | cut -f1)"
+    # It starts and says its version, on the runtime this build made.
+    python3 "$here/bundle/no-interp.py" "$work/rt-root" >/dev/null
+    mkdir -p "$work/test" && cp -a "$work/$d" "$work/test/$d"
+    echo "/w/rt-root" > "$work/test/$d/libexec/falkon/qt-runtime"
+    headless "test/$d" "apt-get -qq update && apt-get -qq install -y patchelf >/dev/null \
+        && for p in libexec/falkon/bin/*; do patchelf --set-interpreter \$PWD/libexec/falkon/lib/ld-musl-$arch.so.1 \
+             --set-rpath \$PWD/libexec/falkon/lib:/w/rt-root/libexec/qt-runtime/lib \$p; done \
+        && QT_QPA_PLATFORM=offscreen ./bin/falkon --version > /w/falkon.version 2>&1"
+    grep -qi "^falkon [0-9]" "$work/falkon.version" || die "falkon does not start: $(cat "$work/falkon.version")"
+    provenance "$d" "luban:falkon $version: Alpine 3.24 $(grep -E '^(falkon|qt6-qtwebengine)-[0-9]' "$work/installed" | tr '\n' ' ')-- on luban:qt-runtime $QT_RUNTIME (the same Qt); the libraries beyond the runtime's and the musl loader private (libexec/falkon); the defaults from xim-pkgindex tools/res/falkon. Sources: https://invent.kde.org/network/falkon, https://code.qt.io/qt/qtwebengine and Alpine's aports, unmodified"
+    pack "$d" ;;
 kde)
     # luban:kde (preview): KDE Plasma 6 -- KWin, Plasma's shell, Dolphin,
     # Konsole, System Settings -- on luban:qt-runtime ($QT_RUNTIME), KWin a
@@ -1078,6 +1222,9 @@ kde)
     for f in "$work/$d"/share/wayland-sessions/* "$work/$d"/share/xsessions/*; do [[ -e "$f" ]] && mv "$f" "$work/dropped/"; done
     cp -r "$here/kde/." "$work/$d/"
     mv "$work/$d/env" "$work/$d/libexec/kde/env"
+    # The camera indicator needs kpipewire's QML module, and a system has no
+    # camera to show (xlings design 2026-10-20 G30): not in its tray.
+    rm -rf "$work/$d/share/plasma/plasmoids/org.kde.plasma.cameraindicator"
     # Its programs keep their interpreter (config() names its loader in
     # them); its libraries and plugins name none.
     python3 "$here/bundle/no-interp.py" "$work/$d/libexec/kde/lib" "$work/$d/libexec/kde/plugins" "$work/$d/libexec/kde/qml" >/dev/null
