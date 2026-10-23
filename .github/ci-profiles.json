@@ -236,5 +236,16 @@
       ".github/scripts/windows-test.ps1",
       ".github/workflows/ci-sweep.yml"
     ]
+  },
+  "release_owned": {
+    "workflow": "release-owned.yml",
+    "paths": [
+      ".github/workflows/release-owned.yml",
+      "pkgs/luban/luban-os.lua",
+      "pkgs/luban/luban.lua",
+      "pkgs/x/xdesk.lua",
+      "pkgs/x/xlings.lua",
+      "scripts/test-release-owned-client.py"
+    ]
   }
 }

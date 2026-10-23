@@ -29,50 +29,25 @@ package = {
     -- `run` and `launcher`; a desktop session (luban-os-ci L3) the rest.
     extensions = { luban = { checks = {
         { id = "luban-runs", what = "luban answers", run = "luban --version", timeout = 20 },
-    } },
-
-
-        autoupdate = {
-            source = "https://github.com/xlings-res/luban/releases",
-            resources = {
-                GLOBAL = {
-                    url = {
-                        linux = {
-                            aarch64 = "https://github.com/xlings-res/luban/releases/download/${version}/luban-${version}-linux-aarch64.tar.gz",
-                            x86_64 = "https://github.com/xlings-res/luban/releases/download/${version}/luban-${version}-linux-x86_64.tar.gz",
-                        },
-                        macosx = {
-                            aarch64 = "https://github.com/xlings-res/luban/releases/download/${version}/luban-${version}-macosx-aarch64.tar.gz",
-                        },
-                        windows = {
-                            x86_64 = "https://github.com/xlings-res/luban/releases/download/${version}/luban-${version}-windows-x86_64.zip",
-                        },
-                    },
-                    required = true,
-                },
-                CN = {
-                    url = {
-                        linux = {
-                            aarch64 = "https://gitcode.com/xlings-res/luban/releases/download/${version}/luban-${version}-linux-aarch64.tar.gz",
-                            x86_64 = "https://gitcode.com/xlings-res/luban/releases/download/${version}/luban-${version}-linux-x86_64.tar.gz",
-                        },
-                        macosx = {
-                            aarch64 = "https://gitcode.com/xlings-res/luban/releases/download/${version}/luban-${version}-macosx-aarch64.tar.gz",
-                        },
-                        windows = {
-                            x86_64 = "https://gitcode.com/xlings-res/luban/releases/download/${version}/luban-${version}-windows-x86_64.zip",
-                        },
-                    },
-                    required = true,
-                },
-            },
-            verify = "sha256-sidecar",
-        },
-    },
+    } } },
 
     xpm = {
         linux = {
-            ["latest"] = { ref = "2026.10.22.4" },
+            ["latest"] = { ref = "2026.10.23.2" },
+            ["2026.10.23.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "6c4c563dc418a65639ac382d5ef6914d0785a6c04ada4bdd44796bd1449a41d2",
+                    x86_64 = "308464c84bf4bacc62018a85c7df7fddf3a9c9294d2cbdadb76e765c18a4776e",
+                },
+            },
+            ["2026.10.23.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "414a809d5b976aebffed3af4f6777266c63e6ee1a3ec04cf07c589b643294e4c",
+                    x86_64 = "805f5652d4de27aedab364cbbd8c5c4bd9f0236285566a2d6b85df3c71bc4d85",
+                },
+            },
             ["2026.10.22.4"] = {
                 url = "XLINGS_RES",
                 sha256 = {
@@ -180,7 +155,19 @@ package = {
             },
         },
         macosx = {
-            ["latest"] = { ref = "2026.10.22.4" },
+            ["latest"] = { ref = "2026.10.23.2" },
+            ["2026.10.23.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "1608055be69ea301dece2117df8be1ba2367e8d6e18082cd178a9de460449075",
+                },
+            },
+            ["2026.10.23.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "a30491781560f9cd4e2e525f63a0e37839a3afa66d1779f83cde98683a9f2821",
+                },
+            },
             ["2026.10.22.4"] = {
                 url = "XLINGS_RES",
                 sha256 = {
@@ -273,7 +260,19 @@ package = {
             },
         },
         windows = {
-            ["latest"] = { ref = "2026.10.22.4" },
+            ["latest"] = { ref = "2026.10.23.2" },
+            ["2026.10.23.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "fc8ade5fb6e6eb570d30081eb4ab6391d207b2663aee9aa2bfde0233a2ea9ea5",
+                },
+            },
+            ["2026.10.23.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "73541abd906bc16cea0d97f713dafeb33241312a1e86af821919420413653ed8",
+                },
+            },
             ["2026.10.22.4"] = {
                 url = "XLINGS_RES",
                 sha256 = {

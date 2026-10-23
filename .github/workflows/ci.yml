@@ -55,6 +55,7 @@ jobs:
       wix_bundle: ${{ steps.plan.outputs.wix_bundle }}
       toolchain_consumer_smoke: ${{ steps.plan.outputs.toolchain_consumer_smoke }}
       luban_agent_workspace: ${{ steps.plan.outputs.luban_agent_workspace }}
+      release_owned: ${{ steps.plan.outputs.release_owned }}
       ci_candidates: ${{ steps.plan.outputs.ci_candidates }}
     steps:
       - uses: actions/checkout@v4
@@ -220,6 +221,13 @@ jobs:
     with:
       base_sha: ${{ needs.plan.outputs.base_sha }}
       head_sha: ${{ needs.plan.outputs.head_sha }}
+  release_owned:
+    needs: plan
+    if: needs.plan.outputs.release_owned == 'true'
+    uses: ./.github/workflows/release-owned.yml
+    with:
+      base_sha: ${{ needs.plan.outputs.base_sha }}
+      head_sha: ${{ needs.plan.outputs.head_sha }}
   glibc_root_runtime:
     needs: plan
     if: needs.plan.outputs.glibc_root_runtime == 'true'
@@ -250,7 +258,7 @@ jobs:
       head_sha: ${{ needs.plan.outputs.head_sha }}
   required:
     if: always()
-    needs: [plan, install, ci_xpkg_test, ci_tools, site_check, consumer_through_index_override, payload_hard_links, runtime_revision_gate, eden_smoke, android_runner, apple_runners, baremetal_riscv_smoke, bundletool, chatgpt_runtime, jvm_build_tools, node_native_modules, wix_bundle, toolchain_consumer_smoke, luban_agent_workspace, glibc_root_runtime, llvm_linux_aarch64, ci_sweep, ci_candidates]
+    needs: [plan, install, ci_xpkg_test, ci_tools, site_check, consumer_through_index_override, payload_hard_links, runtime_revision_gate, eden_smoke, android_runner, apple_runners, baremetal_riscv_smoke, bundletool, chatgpt_runtime, jvm_build_tools, node_native_modules, wix_bundle, toolchain_consumer_smoke, luban_agent_workspace, release_owned, glibc_root_runtime, llvm_linux_aarch64, ci_sweep, ci_candidates]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
