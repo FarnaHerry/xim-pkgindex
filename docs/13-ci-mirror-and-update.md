@@ -75,11 +75,57 @@ validation before such a migration. Historical resources, manual entries and hoo
 The workflow scans every three days at 02:17 UTC / 11:17 JST. A lightweight daily
 trigger checks UTC days from 2026-10-23 and skips scheduled scans between due dates,
 including across month/year boundaries. PR checks and manual triggers bypass this
-cadence gate. A due run scans once and proposes from the same fixed plan. It never executes Lua,
+cadence gate. A due run scans sequential batches and proposes from the same fixed plan. It never executes Lua,
 rewrites published versions, repairs conflicting historical entries, builds payloads, or merges PRs.
 A candidate must pass actual installation, verification and removal on its supported runners.
-The central configuration is `.github/xpkgindex-update.yml`; scan limits and a rotating cursor
-prevent request exhaustion without a multi-day failure throttle. Ordinary updates select the newest
+The central configuration is `.github/xpkgindex-update.yml`. `max_packages: 50` is the
+scan batch size. A run scans up to 20 batches under a shared 500-request / 16 GiB
+budget. Each package also has a 50-request / 8 GiB allowance: reaching that local
+quota defers the package and advances the cursor, so it cannot starve the rest.
+Global exhaustion leaves the interrupted package first in line for the next run.
+
+Verified updates enter a persistent FIFO, independently of scan order.
+`max_prs: 20` limits proposal attempts, including creates and refreshes, per run.
+Remaining candidates stay queued without requiring rediscovery. A newer candidate
+keeps its queue position; failures move behind other candidates with 1-hour to
+24-hour backoff. Changed descriptors invalidate cached candidates, and proposal
+creation rechecks source identity and resource bytes. Individual package failures
+remain visible in the final result while other verified candidates can proceed.
+
+The cursor and queue are stored on the operational `auto/update-state` branch.
+The initial rollout can migrate the old Actions cache, but durable state takes
+precedence thereafter. The final persistence job saves post-proposal state with
+compare-and-swap; on proposal failure it preserves the latest available checkpoint.
+A concurrent writer is rejected instead of overwriting newer progress. This state
+branch publishes no package changes and is not automatically merged.
+
+Candidate platform concurrency is four per workflow, and dispatch is capped at
+20 new workflows per invocation. Successful or active CI for the same head,
+including ordinary PR-triggered CI, is not duplicated. A refreshed head gets new
+validation; obsolete runs are cancelled only after rechecking the PR head.
+`autoupdate-dispatch.py --retry-failed` explicitly retries unchanged failed heads,
+retaining bot/repository/base checks. Partial proposal failure still dispatches
+successful proposals and remains a failure in the final gate.
+
+A manual `xpkgindex-update.yml` run accepts `max_batches` (1..20), an optional
+`package`, and `dry_run: true`. Dry runs scan real upstream resources and upload
+`unified-update-plan`, but create no PRs and dispatch no candidate CI. Dry runs,
+single-package scans and feature-branch scans neither restore nor save the
+production cursor. Proposal creation remains restricted to the default branch.
+For example, validate an integration branch before rollout:
+
+```sh
+gh workflow run xpkgindex-update.yml --ref fix/autoupdate-batching-ci -f dry_run=true -f max_batches=20
+```
+
+Candidate installers are fetched from the pinned xlings release tag, rather than
+mutable `main`. Release support still matters: current xlings releases have no
+macOS Intel or Windows ARM64 assets. Those native candidate jobs remain blocked;
+a successful resource download or a scan does not count as native installation
+validation. DPCPP's RUNPATH verification likewise remains a real upgrade gate.
+These failures must be resolved before the affected package PRs merge.
+
+Scan limits and a rotating cursor prevent request exhaustion without a multi-day failure throttle. Ordinary updates select the newest
 stable release. Historical backfill is separate and is not enabled.
 
 With the workflow's pinned tool installed:
@@ -91,8 +137,14 @@ xpkgindex-update apply --plan plan.json --package xim:foo
 ```
 
 `propose --plan plan.json` requires repository write credentials and creates per-package PRs.
-Existing manual package PRs block duplicate proposals. Failed PR creation after a push can be resumed.
-Plans are rejected when the base commit, descriptor, tag commit or resource bytes change.
+Branches are fixed per package, for example `auto/bump-xim-nvim`. Newer verified
+candidates update the same bot PR, including its title and resource evidence.
+Ordinary fast-forward commits replace unpublished candidate changes while
+preserving published versions. Manual edits and concurrent updates are rejected;
+no force push is used. A legacy versioned bot PR is closed only after its fixed
+branch replacement exists. Manual package PRs continue to block automation.
+Failed PR creation after a push can be resumed. Plans are rejected when the base
+commit, descriptor, tag commit or resource bytes change.
 
 ## Mirror publication
 
