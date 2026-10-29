@@ -21,10 +21,10 @@ package = {
         linux = {
             -- node/npm are needed at install time only (the install
             -- hook calls `npm install bun@<ver>`); after install the
-            -- bun native binary is self-contained. glibc is the actual
-            -- runtime dep — bun's prebuilt is dynamically linked
-            -- (NEEDED libc.so.6 / libdl.so.2 / libm.so.6 /
-            -- libpthread.so.0; no libgcc_s/libstdc++).
+            -- selected bun native binary is self-contained. glibc is the
+            -- actual runtime dep. Do not let npm keep bun's optional
+            -- platform variants in the payload: CI scans every ELF, and an
+            -- unused musl binary there reads as a runtime dependency.
             deps = {
                 runtime = { "xim:glibc@>=2.39" },
                 build   = { "xim:node", "xim:npm" },
@@ -57,7 +57,7 @@ function install()
     os.mkdir(pkginfo.install_dir())
 
     local npm_install = string.format(
-        [[npm install --prefix "%s" --no-fund --no-audit "bun@%s"]],
+        [[npm install --prefix "%s" --no-fund --no-audit --omit=optional "bun@%s"]],
         pkginfo.install_dir(),
         pkginfo.version()
     )
