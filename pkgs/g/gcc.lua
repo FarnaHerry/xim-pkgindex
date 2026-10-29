@@ -11,6 +11,7 @@ package = {
 
     -- base info
     name = "gcc",
+    revision = 1,
     description = "GCC, the GNU Compiler Collection",
 
     authors = {"GNU"},
@@ -20,7 +21,7 @@ package = {
 
     -- xim pkg info
     type = "package",
-    archs = { "x86_64" },
+    archs = { "x86_64", "aarch64" },
     status = "stable", -- dev, stable, deprecated
     categories = { "compiler", "gnu", "language" },
     keywords = { "compiler", "gnu", "gcc", "language", "c", "c++" },
@@ -40,7 +41,9 @@ package = {
     xpm = {
         linux = {
             deps = {
-                "xim:glibc@>=2.39", "xim:binutils@2.42",
+                build = { "xim:patchelf@0.18.0" },
+                runtime = {
+                "xim:glibc@>=2.39", "xim:binutils@2.42.1",
                 -- fix xmake project --project=.  -k compile_commands
                 -- home/xlings/.xlings_data/subos/linux/usr/include/bits/errno.h:26:11: fatal error: linux/errno.h: No such file or directory
                 "xim:linux-headers@5.11.1",
@@ -52,9 +55,32 @@ package = {
                 -- RPATH empty, leaning on system glibc and breaking on
                 -- distroless / Alpine / different glibc version.
                 "xim:gcc-specs-config@0.0.1",
+                },
             },
             ["latest"] = { ref = "16.1.0" },
-            ["16.1.0"] = "XLINGS_RES",
+            -- aarch64: built natively on an arm runner as x86_64's was
+            -- (tools/res/build.sh gcc: fromsource:gcc's configure, against a
+            -- sysroot of xim:glibc + xim:linux-headers), C++23 `import std`
+            -- checked there.
+            -- 1: 16.1.0-r1 -- the same files without hard links (Android and
+            -- FAT refuse link(2)); aarch64 stripped as x86_64's is.
+            ["16.1.0"] = {
+                revision = 1,
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/gcc/releases/download/16.1.0-r1/gcc-16.1.0-r1-linux-x86_64.tar.gz",
+                        CN     = "https://gitcode.com/xlings-res/gcc/releases/download/16.1.0-r1/gcc-16.1.0-r1-linux-x86_64.tar.gz",
+                    },
+                    sha256 = "5469a5fdf6a8bedc76e8049a7f2a0d1ecbe87d6ddf3cdf28bf1a3a9978460dd6",
+                },
+                aarch64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/gcc/releases/download/16.1.0-r1/gcc-16.1.0-r1-linux-aarch64.tar.gz",
+                        CN     = "https://gitcode.com/xlings-res/gcc/releases/download/16.1.0-r1/gcc-16.1.0-r1-linux-aarch64.tar.gz",
+                    },
+                    sha256 = "887f50f2d34e547cffa7c7ba42d77d37980de67d9033ddb114086a1dd833fc1c",
+                },
+            },
             ["15.1.0"] = "XLINGS_RES",
             ["13.3.0"] = "XLINGS_RES",
             ["11.5.0"] = "XLINGS_RES",
@@ -67,11 +93,23 @@ package = {
     },
 }
 
+-- Older versions were published for x86_64 only: an aarch64 reader refuses
+-- them rather than install x86 bytes.
+local recipe_arch = (os.arch and os.arch())
+if recipe_arch ~= "aarch64" and recipe_arch ~= "arm64" and recipe_arch ~= "x86_64" then
+    recipe_arch = (type(is_arch) == "function" and is_arch("aarch64")) and "aarch64" or "x86_64"
+end
+if recipe_arch == "arm64" then recipe_arch = "aarch64" end
+if recipe_arch == "aarch64" then
+    for _, v in ipairs({"15.1.0", "13.3.0", "11.5.0", "9.4.0"}) do package.xpm.linux[v] = nil end
+end
+
 import("xim.libxpkg.pkginfo")
 import("xim.libxpkg.log")
 import("xim.libxpkg.system")
 import("xim.libxpkg.xvm")
 import("xim.libxpkg.pkgmanager")
+import("xim.pkgindex.shell")
 -- elfpatch import removed: predicate-driven auto-patch (post 2026-05-02
 -- design) reads glibc.lua's exports.runtime.loader and rewrites our
 -- INTERP / RPATH automatically. Default scan = "convention" already
@@ -82,12 +120,29 @@ import("xim.libxpkg.pkgmanager")
 -- Kept separate from package.programs so that the cross-platform declared-
 -- program audit (which runs on windows where mingw-w64 only ships gcc/g++/c++)
 -- doesn't demand shims that only exist on linux.
-local linux_programs = {
+local linux_programs_common = {
     "gcc", "g++", "c++", "cpp",
     "gcc-ar", "gcc-nm", "gcc-ranlib",
     "gcov", "gcov-dump", "gcov-tool",
-    "x86_64-linux-gnu-gcc", "x86_64-linux-gnu-g++", "x86_64-linux-gnu-c++",
 }
+
+-- The target-prefixed driver names, as THIS payload has them (x86_64-linux-gnu-gcc,
+-- aarch64-linux-gnu-gcc): read from its bin/, not from the machine's name for
+-- itself -- a hook does not always see the catalog's architecture.
+function __triple()
+    for _, t in ipairs({"x86_64-linux-gnu", "aarch64-linux-gnu"}) do
+        if os.isfile(path.join(pkginfo.install_dir(), "bin", t .. "-gcc")) then return t end
+    end
+    return "x86_64-linux-gnu"
+end
+
+function __linux_programs()
+    local t = __triple()
+    local out = {}
+    for _, p in ipairs(linux_programs_common) do table.insert(out, p) end
+    for _, p in ipairs({ t .. "-gcc", t .. "-g++", t .. "-c++" }) do table.insert(out, p) end
+    return out
+end
 
 local gcc_tool = {
     ["gcc-ar"] = true, ["gcc-nm"] = true, ["gcc-ranlib"] = true,
@@ -114,6 +169,9 @@ local compiler_entry = {
     ["x86_64-linux-gnu-gcc"] = true,
     ["x86_64-linux-gnu-g++"] = true,
     ["x86_64-linux-gnu-c++"] = true,
+    ["aarch64-linux-gnu-gcc"] = true,
+    ["aarch64-linux-gnu-g++"] = true,
+    ["aarch64-linux-gnu-c++"] = true,
 }
 
 function install()
@@ -147,7 +205,7 @@ function uninstall()
     end
 
     local gcc_version = "gcc-" .. pkginfo.version()
-    for _, prog in ipairs(linux_programs) do
+    for _, prog in ipairs(__linux_programs()) do
         if gcc_tool[prog] then
             xvm.remove(prog, gcc_version)
         else
@@ -389,7 +447,7 @@ function __config_linux()
         }
     }
 
-    for _, prog in ipairs(linux_programs) do
+    for _, prog in ipairs(__linux_programs()) do
 
         config.alias = prog
 
@@ -514,6 +572,40 @@ function __specs_interp_exists(gcc_bin, dynamic_linker)
     return true, nil
 end
 
+-- The specs file this gcc reads, or nil when it cannot say.
+function __specs_file(gcc_bin)
+    local libgcc = os.iorun(gcc_bin .. " -print-libgcc-file-name")
+    if not libgcc or libgcc:trim() == "" then return nil end
+    local specs = path.join(path.directory(libgcc:trim()), "specs")
+    return os.isfile(specs) and specs or nil
+end
+
+-- Can this process write the file? Opened for appending and closed: nothing
+-- is written, and its time does not change.
+function __writable(file)
+    local f = io.open(file, "a")
+    if not f then return false end
+    f:close()
+    return true
+end
+
+-- Compile a program in a private directory and run it. The C runtime is this
+-- package's glibc dep, named directly (-B for the crt objects, -L for libc):
+-- the payload's built-in sysroot is the build machine's, and this home's
+-- sysroot is filled only after the whole install. Returns ok, reason.
+function __builds_a_program_that_runs(gcc_bin, glibc_lib)
+    local dir = path.join(os.getenv("TMPDIR") or "/tmp", "xlings-gcc-probe-" .. tostring(os.time()))
+    os.mkdir(dir)
+    local src, exe = path.join(dir, "probe.c"), path.join(dir, "probe")
+    io.writefile(src, "int main(void) { return 0; }\n")
+    local runtime = glibc_lib and string.format("-B%s -L%s ", __shq(glibc_lib), __shq(glibc_lib)) or ""
+    local out = os.iorun(string.format("%s %s%s -o %s && %s && echo ran", __shq(gcc_bin), runtime,
+        __shq(src), __shq(exe), __shq(exe)))
+    os.tryrm(dir)
+    if out and out:find("ran", 1, true) then return true, nil end
+    return false, "a program compiled with " .. gcc_bin .. " did not run"
+end
+
 function __rewrite_specs_linux(rpath, dynamic_linker)
     -- The "-payload" suffix versions the specs SCHEMA: pre-existing installs
     -- carry the old subos-form stamp, which no longer matches, so the next
@@ -523,6 +615,24 @@ function __rewrite_specs_linux(rpath, dynamic_linker)
         ".specs-rewritten-" .. pkginfo.version() .. "-payload.stamp"
     )
     local gcc_bin = path.join(pkginfo.install_dir(), "bin/gcc")
+
+    -- A payload this home borrows -- an upstream's, read-only here (xlings:
+    -- link entries, configured in the borrowing home) -- is its owner's. Its
+    -- specs stay as the owner wrote them (inside a Luban system they name the
+    -- system's /lib64 loader), and it is judged by what it builds here: a
+    -- program that runs. Writing them was refused, and was not this home's
+    -- to do.
+    local specs_file = __specs_file(gcc_bin)
+    if specs_file and not __writable(specs_file) then
+        local ok, why = __builds_a_program_that_runs(gcc_bin, dynamic_linker and path.directory(dynamic_linker) or nil)
+        if ok then
+            log.info("gcc: a borrowed payload; its specs are its owner's, and a program it builds runs here")
+            return true
+        end
+        log.error("gcc: this borrowed payload does not build a program that runs here: %s", why)
+        log.error("  its owner repairs it (xlings install --reconfig gcc in %s's home)", pkginfo.install_dir())
+        return false
+    end
 
     -- The stamp is a cache, NOT the decision.
     --
@@ -547,13 +657,32 @@ function __rewrite_specs_linux(rpath, dynamic_linker)
             .. "runnable binary -- rewriting to repair it.")
     end
 
-    local specs_config_bin = path.join(system.bindir(), "gcc-specs-config")
+    -- THE SCRIPT ITSELF, NOT ITS SHIM, when its payload can be found. The
+    -- shim runs the alias xlings recorded for a script package,
+    -- `xlings script <path>`, and xlings releases before the alias was quoted
+    -- split that path at a space: a home under `/tmp/mc probe` failed here
+    -- with `package file not found: /tmp/mc` (mcpp#832). Running the script
+    -- through `xlings script` as an argument vector reaches it on every
+    -- client; the shim stays the fallback for a layout this does not know.
+    local specs_config = { path.join(system.bindir(), "gcc-specs-config") }
+    local specs_dir = pkginfo.dep_install_dir("xim:gcc-specs-config")
+    if specs_dir and os.isfile(path.join(specs_dir, "gcc-specs-config.lua")) then
+        specs_config = { path.join(system.bindir(), "xlings"), "script",
+                         path.join(specs_dir, "gcc-specs-config.lua") }
+    end
 
     log.info("Rewriting gcc specs to payload-direct paths via gcc-specs-config...")
-    system.exec(string.format(
-        "%s %s --dynamic-linker %s --rpath %s --linker-type gnu",
-        specs_config_bin, gcc_bin, dynamic_linker, rpath
-    ))
+    -- AN ARGUMENT VECTOR, NOT A FORMATTED STRING (mcpp#832). Every value
+    -- here is a path under the home, and a home under `/tmp/mc probe` split
+    -- each one at the space: the rewrite named `/tmp/mc` and the install
+    -- failed in a step that has nothing to do with the user's project.
+    local argv = {}
+    for _, a in ipairs(specs_config) do argv[#argv + 1] = a end
+    for _, a in ipairs({gcc_bin, "--dynamic-linker", dynamic_linker,
+                        "--rpath", rpath, "--linker-type", "gnu"}) do
+        argv[#argv + 1] = a
+    end
+    shell.exec(argv)
 
     -- Fail, do not warn and continue -- the same reasoning as the missing-glibc
     -- branch in __config_linux. A gcc that installs "successfully" and cannot

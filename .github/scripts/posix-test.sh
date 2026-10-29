@@ -15,6 +15,9 @@ set -o pipefail
 CHANGED_FILES="${1:-}"
 WORKSPACE_ROOT="${2:-}"
 HOST_OS="${3:-}"
+# The recipes placed in the index before any is installed: the whole plan for this platform when
+# the plan is sharded (a dependency the PR changes may be another shard's), else these files.
+OVERLAY_FILES="${4:-$CHANGED_FILES}"
 
 if [[ -z "$WORKSPACE_ROOT" || -z "$HOST_OS" ]]; then
     echo "usage: posix-test.sh <changed-files> <workspace-root> <host-os>" >&2
@@ -124,6 +127,8 @@ metadata_only_owner_migration() {
         if [[ "$content" =~ ^[[:space:]]*(repo|homepage|contributors)[[:space:]]*= ]]; then
             continue
         fi
+        # A comment changes nothing a recipe does (a graphics-ok note, a TODO).
+        [[ "$content" =~ ^[[:space:]]*-- ]] && continue
         return 1
     done <<< "$changed"
 
@@ -167,6 +172,7 @@ run_bounded() {
 }
 
 read -r -a files <<< "$CHANGED_FILES"
+read -r -a overlay_files <<< "$OVERLAY_FILES"
 if [[ "${#files[@]}" -eq 0 ]]; then
     echo "No changed .lua files. Nothing to test."
     exit 0
@@ -321,7 +327,7 @@ overlay_recipe() {
     # New name: the cache is what the resolver reads, so it has to be rebuilt.
     rm -f "$INDEX_DIR/.xlings-index-cache.json"
     local pkg_name; pkg_name="$(basename "$rel_file" .lua)"
-    if "$XLINGS_CMD" search "$pkg_name" 2>/dev/null | grep -q "xim:$pkg_name"; then
+    if "$XLINGS_CMD" search "$pkg_name" 2>/dev/null | grep -qE "xim:${pkg_name}([^A-Za-z0-9._+-]|\$)"; then
         return 0
     fi
     # Could not make it resolve under xim: — leave it to --add-xpkg / local:.
@@ -339,10 +345,13 @@ if [[ -d "$WORKSPACE_ROOT/libs" && -d "$INDEX_DIR" && ! -L "$INDEX_DIR" ]]; then
     cp "$WORKSPACE_ROOT/libs/"*.lua "$INDEX_DIR/libs/" 2>/dev/null || true
 fi
 
-for rel_file in "${files[@]}"; do
+for rel_file in "${overlay_files[@]}"; do
     [[ -n "$rel_file" ]] || continue
     [[ -f "$WORKSPACE_ROOT/$rel_file" ]] || continue
-    if ! overlay_recipe "$rel_file"; then
+    if overlay_recipe "$rel_file"; then
+        echo "  placed in the index: $rel_file"
+    else
+        echo "  placed through --add-xpkg (it did not resolve under xim:): $rel_file"
         "$XLINGS_CMD" config --add-xpkg "$WORKSPACE_ROOT/$rel_file" >/dev/null 2>&1 || true
     fi
 done
@@ -359,7 +368,15 @@ for rel_file in "${files[@]}"; do
         continue
     fi
     if metadata_only_owner_migration "$rel_file"; then
-        info "skip (metadata-only owner/link migration): $rel_file"
+        info "skip (metadata or comments only): $rel_file"
+        skipped=$((skipped+1))
+        continue
+    fi
+    # Luban's own packages (editions, boot profiles, its applications) are
+    # made, booted and checked by luban-agent-workspace.yml, with the xlings
+    # they are written for; this client is older than they require.
+    if [[ "$rel_file" == pkgs/luban/* ]]; then
+        info "skip (a Luban package: luban-agent-workspace.yml tests it): $rel_file"
         skipped=$((skipped+1))
         continue
     fi

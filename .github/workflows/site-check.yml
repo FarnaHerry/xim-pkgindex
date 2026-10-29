@@ -9,18 +9,20 @@ name: site-check
 # and the result should depend only on what is in the repository.
 
 on:
-  pull_request:
-    paths:
-      - 'pkgs/**'
-      - '.xpkgindex.json'
-      - '.xpkgindex/**'
-      - 'docs/**'
-      - '.github/workflows/site-check.yml'
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      base_sha:
+        type: string
+        default: ""
+      head_sha:
+        type: string
+        default: ""
+  workflow_dispatch: null
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,13 +32,20 @@ jobs:
           python-version: '3.12'
 
       - name: Install xpkgindex
-        run: pip install git+https://github.com/openxlings/xpkgindex.git
+        run: pip install -r .xpkgindex/requirements.txt
+
+      - name: The docs and their translations agree
+        run: |
+          pip install pytest
+          pytest -q tests/test_docs.py -m static
 
       - name: Build the site
         # --strict turns the growth reconciliation warning into an error: if
         # the replayed history disagrees with the tree, the curve on the site
         # would be wrong, and that is worth failing a pull request over.
-        run: xpkgindex generate . --output /tmp/site --offline --strict | tee /tmp/build.log
+        run: |
+          set -euo pipefail
+          xpkgindex generate . --output /tmp/site --offline --strict | tee /tmp/build.log
 
       - name: No warnings
         run: |
@@ -50,8 +59,9 @@ jobs:
         run: |
           set -e
           for f in index.html index.json stats/index.html contributors/index.html \
-                   about/index.html docs/quick-start/index.html \
-                   en/index.html zh-Hant/index.html; do
+                   about/index.html docs/quick-start/index.html docs/docs-index/index.html \
+                   zh/docs/quick-start/index.html zh/docs/docs-index/index.html \
+                   zh/index.html zh-Hant/index.html; do
             test -s "/tmp/site/$f" || { echo "::error::missing $f"; exit 1; }
           done
 

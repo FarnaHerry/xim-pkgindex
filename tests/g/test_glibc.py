@@ -139,3 +139,300 @@ class TestRevisionOrdering:
         for v in versions:
             assert re.fullmatch(r'\d+(\.\d+)*', v), \
                 f"{v} is not dotted digits; see TestRevisionOrdering"
+
+
+# ── binary relocation (openxlings/xlings#621) ─────────────────────────────
+
+import os
+import re
+import shutil
+import stat
+import subprocess
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent.parent
+RELOCATE_HARNESS = REPO / "tests" / "lua" / "glibc_relocate_harness.lua"
+BUILD_SCRIPT = REPO / ".agents" / "tools" / "graphics" / "build-glibc.sh"
+
+RESERVED = b"/nonexistent/xlings-use-rpath-not-default-search"
+PADDING_TAG = b"padding-to-255-bytes-for-install-time-relocation"
+PADDED = RESERVED + b"/" + PADDING_TAG
+PADDED = PADDED + b"_" * (255 - len(PADDED))
+ELF_HEAD = b"\x7fELF\x02\x01\x01\x00" + b"\x00" * 56
+
+
+def _lua():
+    return shutil.which("lua5.4") or shutil.which("lua")
+
+
+needs_lua_relocate = pytest.mark.skipif(_lua() is None, reason="no lua interpreter")
+
+
+def _run(mode, install_dir, placeholder=PADDED):
+    args = [_lua(), str(RELOCATE_HARNESS), str(REPO / PKG_FILE), mode, str(install_dir)]
+    if mode == "relocate":
+        args.append(placeholder.decode())
+    return subprocess.run(args, capture_output=True, text=True)
+
+
+def _expected(content, to):
+    """The rewrite, restated independently of the recipe: every occurrence
+    of the placeholder becomes the install directory `/`-padded to 255
+    bytes."""
+    return content.replace(PADDED, to + b"/" * (len(PADDED) - len(to)))
+
+
+def _nul_offsets(content):
+    return [i for i, b in enumerate(content) if b == 0]
+
+
+class TestBinaryRelocation:
+    """install() overwrites the padded prefix inside the payload's binaries
+    with the install directory followed by `/` up to 255 bytes, so that no
+    string and no compiled-in length changes; refuses an install directory
+    longer than the placeholder; and then asserts that the reserved prefix
+    is gone. Run against synthetic files through tests/lua/
+    glibc_relocate_harness.lua; the end-to-end run on the real payload is in
+    the pull request."""
+
+    @pytest.mark.static
+    def test_recipe_and_build_script_spell_the_same_prefix(self):
+        script = BUILD_SCRIPT.read_text(encoding="utf-8")
+        recipe = (REPO / PKG_FILE).read_text(encoding="utf-8")
+        assert f'RESERVED_PREFIX="{RESERVED.decode()}"' in script
+        assert f'PREFIX="$RESERVED_PREFIX/{PADDING_TAG.decode()}"' in script
+        assert 'while (( ${#PREFIX} < 255 )); do PREFIX+="_"; done' in script
+        assert f'local RESERVED_PREFIX = "{RESERVED.decode()}"' in recipe
+        assert f'RESERVED_PREFIX .. "/{PADDING_TAG.decode()}"' in recipe
+        assert 'string.rep("_", 255 - #PADDING_HEAD)' in recipe
+
+    @needs_lua_relocate
+    @pytest.mark.static
+    @pytest.mark.parametrize("arch,loader", [
+        ("x86_64", "ld-linux-x86-64.so.2"),
+        ("aarch64", "ld-linux-aarch64.so.1"),
+    ])
+    def test_revision_selects_matching_runtime_and_immutable_resource(self, arch, loader):
+        result = subprocess.run([
+            _lua(), str(REPO / "tests/lua/glibc_metadata_harness.lua"),
+            str(REPO / PKG_FILE), arch,
+        ], capture_output=True, text=True)
+        assert result.returncode == 0, result.stdout + result.stderr
+        interp, abi, revision, version, digest, global_url, cn_url, keys = result.stdout.strip().split("\t")
+        assert interp == f"lib64/{loader}"
+        assert abi == f"linux-{arch}-glibc"
+        assert int(revision) >= 2
+        assert re.fullmatch(r"[0-9a-f]{64}", digest)
+        suffix = f"/releases/download/{version}-r{revision}/glibc-{version}-r{revision}-linux-{arch}.tar.gz"
+        assert global_url == "https://github.com/xlings-res/glibc" + suffix
+        assert cn_url == "https://gitcode.com/xlings-res/glibc" + suffix
+        if arch == "aarch64":
+            assert keys.split(",") == [version], "ARM must not select older x86-only archives"
+        else:
+            assert {"2.39", "2.44", "2.44.2", version} <= set(keys.split(","))
+
+    @needs_lua_relocate
+    @pytest.mark.static
+    @pytest.mark.parametrize("arch,loader", [
+        ("x86_64", "ld-linux-x86-64.so.2"),
+        ("aarch64", "ld-linux-aarch64.so.1"),
+    ])
+    def test_config_registers_the_loader_present_in_the_architecture_payload(self, tmp_path, arch, loader):
+        payload = tmp_path / "xim-x-glibc" / "2.44.3"
+        (payload / "lib64").mkdir(parents=True)
+        (payload / "lib64" / loader).write_bytes(b"loader fixture")
+        (payload / "lib64/libc.so.6").write_bytes(b"libc fixture")
+        result = subprocess.run([
+            _lua(), str(REPO / "tests/lua/glibc_metadata_harness.lua"),
+            str(REPO / PKG_FILE), arch, "config", str(payload),
+        ], capture_output=True, text=True)
+        assert result.returncode == 0, result.stdout + result.stderr
+        registered = set(result.stdout.splitlines())
+        assert loader in registered
+        assert "libc.so.6" in registered
+        assert ({"ld-linux-x86-64.so.2", "ld-linux-aarch64.so.1"} - {loader}).isdisjoint(registered)
+
+    @needs_lua_relocate
+    @pytest.mark.static
+    def test_every_occurrence_is_rewritten_and_no_length_changes(self, tmp_path):
+        payload = tmp_path / "home" / "alice" / ".xlings" / "data" / "xpkgs" / "xim-x-glibc" / "2.44.3"
+        (payload / "lib").mkdir(parents=True)
+        to = str(payload).encode()
+        assert len(to) > len(RESERVED), "the case the padding exists for"
+        content = (ELF_HEAD + b"prefix-of-string:" + PADDED + b"/share/locale/%L/%N:"
+                   + PADDED + b"/share/locale/%l/%N\0" + b"other\0"
+                   + PADDED + b"/lib/locale\0" + b"\x01\x02" + PADDED + b"/etc")
+        lib = payload / "lib" / "libc.so.6"
+        lib.write_bytes(content)
+        lib.chmod(0o755)
+        (payload / "lib" / "libc.so").write_bytes(b"GROUP ( " + PADDED + b"/lib/libc.so.6 )\n")
+        os.symlink("lib", payload / "lib64")
+
+        result = _run("relocate", payload)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "RELOCATED 1" in result.stdout
+        assert "relocated 4 occurrence(s) in 1 binary file(s)" in result.stdout
+
+        new = lib.read_bytes()
+        assert len(new) == len(content)
+        assert new == _expected(content, to)
+        assert PADDED not in new and RESERVED not in new
+        assert new.count(to + b"/" * (255 - len(to))) == 4
+        # Every C string keeps its length: the NULs are where they were.
+        assert _nul_offsets(new) == _nul_offsets(content)
+        assert to + b"/" * (255 - len(to)) + b"/lib/locale\0" in new
+        assert stat.S_IMODE(lib.stat().st_mode) == 0o755
+        # Text is relocate_build_paths' job, and the symlink is not followed.
+        assert (payload / "lib" / "libc.so").read_bytes().count(PADDED) == 1
+        assert (payload / "lib64").is_symlink()
+        assert not list(payload.rglob("*.xlings-relocate"))
+
+    @needs_lua_relocate
+    @pytest.mark.static
+    def test_a_relocated_file_keeps_its_mode_and_nothing_else_is_preserved(self, tmp_path):
+        """The copy takes the original's mode only: `cp -p` also preserved
+        its ACL and owner, which fail with EINVAL in a user namespace that
+        does not map them (a system's store in a prefix domain)."""
+        payload = tmp_path / "p"
+        (payload / "lib").mkdir(parents=True)
+        content = ELF_HEAD + PADDED + b"/lib/locale\0"
+        for name, mode in (("libc.so.6", 0o755), ("data.bin", 0o644)):
+            (payload / "lib" / name).write_bytes(content)
+            (payload / "lib" / name).chmod(mode)
+        result = _run("relocate", payload)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert stat.S_IMODE((payload / "lib" / "libc.so.6").stat().st_mode) == 0o755
+        assert stat.S_IMODE((payload / "lib" / "data.bin").stat().st_mode) == 0o644
+        assert 'execute("cp -p' not in (REPO / PKG_FILE).read_text(encoding="utf-8")
+
+    @needs_lua_relocate
+    @pytest.mark.static
+    def test_hard_links_are_each_relocated(self, tmp_path):
+        payload = tmp_path / "p"
+        (payload / "bin").mkdir(parents=True)
+        (payload / "libexec").mkdir()
+        content = ELF_HEAD + PADDED + b"/libexec/getconf\0"
+        (payload / "bin" / "getconf").write_bytes(content)
+        os.link(payload / "bin" / "getconf", payload / "libexec" / "POSIX_V7_LP64_OFF64")
+        result = _run("relocate", payload)
+        assert result.returncode == 0, result.stdout + result.stderr
+        for f in (payload / "bin" / "getconf", payload / "libexec" / "POSIX_V7_LP64_OFF64"):
+            assert f.read_bytes() == _expected(content, str(payload).encode())
+
+    @needs_lua_relocate
+    @pytest.mark.static
+    def test_install_dir_of_exactly_255_bytes_needs_no_padding(self, tmp_path):
+        deep = tmp_path
+        while len(str(deep)) + 1 + 60 < 255:
+            deep = deep / ("d" * 60)
+        deep = deep / ("e" * (255 - len(str(deep)) - 1))
+        deep.mkdir(parents=True)
+        assert len(str(deep)) == 255
+        content = ELF_HEAD + PADDED + b"/lib/locale\0"
+        (deep / "libc.so.6").write_bytes(content)
+        result = _run("relocate", deep)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert (deep / "libc.so.6").read_bytes() == ELF_HEAD + str(deep).encode() + b"/lib/locale\0"
+
+    @needs_lua_relocate
+    @pytest.mark.static
+    def test_install_dir_longer_than_the_placeholder_is_refused_untouched(self, tmp_path):
+        deep = tmp_path
+        while len(str(deep)) <= 260:
+            deep = deep / ("d" * 60)
+        deep.mkdir(parents=True)
+        content = ELF_HEAD + PADDED + b"/lib/locale\0"
+        (deep / "libc.so.6").write_bytes(content)
+        result = _run("relocate", deep)
+        assert result.returncode == 1
+        assert "at most 255 bytes" in result.stdout
+        assert str(deep) in result.stdout
+        assert (deep / "libc.so.6").read_bytes() == content
+
+    @needs_lua_relocate
+    @pytest.mark.static
+    def test_payload_without_the_padded_prefix_is_left_alone(self, tmp_path):
+        content = ELF_HEAD + RESERVED + b"/lib/locale\0"
+        (tmp_path / "libc.so.6").write_bytes(content)
+        result = _run("relocate", tmp_path)
+        assert result.returncode == 0 and "RELOCATED 0" in result.stdout, result.stdout
+        assert (tmp_path / "libc.so.6").read_bytes() == content
+
+    @needs_lua_relocate
+    @pytest.mark.static
+    def test_an_unpadded_reserved_prefix_left_behind_fails_the_install(self, tmp_path):
+        (tmp_path / "libc.so.6").write_bytes(ELF_HEAD + PADDED + b"/lib/locale\0")
+        (tmp_path / "ld.so").write_bytes(ELF_HEAD + RESERVED + b"/etc/ld.so.cache\0")
+        result = _run("relocate", tmp_path)
+        assert result.returncode == 1
+        assert "still name " + RESERVED.decode() in result.stdout
+        assert "ld.so" in result.stdout
+
+    @needs_lua_relocate
+    @pytest.mark.static
+    def test_a_differently_padded_prefix_is_refused(self, tmp_path):
+        other = RESERVED + b"/" + PADDING_TAG + b"_" * 10
+        (tmp_path / "libc.so.6").write_bytes(ELF_HEAD + other + b"/lib/locale\0")
+        result = _run("relocate", tmp_path)
+        assert result.returncode == 1
+        assert "must spell the same PREFIX" in result.stdout
+
+    @needs_lua_relocate
+    @pytest.mark.static
+    def test_assert_covers_text_files(self, tmp_path):
+        (tmp_path / "ldd").write_bytes(b'#!/bin/bash\nRTLDLIST="' + RESERVED + b'/lib/ld.so"\n')
+        (tmp_path / "doc").write_bytes(b"see docs/nonexistent/xlings-use-rpath-not-default-search\n")
+        result = _run("assert", tmp_path)
+        assert result.returncode == 1
+        # `doc` names the prefix inside a longer relative path, not as one.
+        assert re.search(r"1 file\(s\) still name .* own data: ldd\s*$", result.stdout), \
+            result.stdout
+
+
+class TestLinkerScriptQuoting:
+    """After relocation the linker scripts name the install directory. Under a
+    directory holding a space each such name is written in double quotes, the
+    one spelling GNU ld and lld read as a single name (mcpp-community/mcpp#832);
+    under any other directory the scripts are left byte for byte."""
+
+    @staticmethod
+    def _payload(root):
+        lib = root / "lib"
+        lib.mkdir(parents=True)
+        (lib / "libm.so").write_text(
+            "/* GNU ld script\n*/\nOUTPUT_FORMAT(elf64-x86-64)\n"
+            f"GROUP ( {root}/lib/libm.so.6  AS_NEEDED ( {root}/lib/libmvec.so.1 ) )\n")
+        (lib / "libc.so").write_text(
+            "/* GNU ld script\n*/\nOUTPUT_FORMAT(elf64-x86-64)\n"
+            f"GROUP ( {root}/lib/libc.so.6 {root}/lib/libc_nonshared.a "
+            f" AS_NEEDED ( {root}/lib/ld-linux-x86-64.so.2 ) )\n")
+        (lib / "libm.a").write_bytes(b"!<arch>\n")
+        return lib
+
+    @needs_lua_relocate
+    @pytest.mark.static
+    def test_a_spaced_directory_is_quoted_once(self, tmp_path):
+        root = tmp_path / "mc probe" / "glibc"
+        lib = self._payload(root)
+        result = _run("quote", root)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "QUOTED 2" in result.stdout
+        libm = (lib / "libm.so").read_text()
+        assert f'GROUP ( "{root}/lib/libm.so.6"  AS_NEEDED ( "{root}/lib/libmvec.so.1" ) )' in libm
+        libc = (lib / "libc.so").read_text()
+        assert f'"{root}/lib/libc_nonshared.a"' in libc
+        assert f'( "{root}/lib/ld-linux-x86-64.so.2" )' in libc
+        assert (lib / "libm.a").read_bytes() == b"!<arch>\n"
+        again = _run("quote", root)
+        assert "QUOTED 0" in again.stdout
+        assert (lib / "libm.so").read_text() == libm
+
+    @needs_lua_relocate
+    @pytest.mark.static
+    def test_a_plain_directory_is_left_alone(self, tmp_path):
+        root = tmp_path / "plain" / "glibc"
+        lib = self._payload(root)
+        before = (lib / "libc.so").read_text()
+        result = _run("quote", root)
+        assert "QUOTED 0" in result.stdout, result.stdout + result.stderr
+        assert (lib / "libc.so").read_text() == before

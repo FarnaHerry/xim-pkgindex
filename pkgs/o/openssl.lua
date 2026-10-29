@@ -8,7 +8,7 @@ package = {
     repo = "https://github.com/openssl/openssl",
 
     type = "package",
-    archs = { "x86_64" },
+    archs = { "x86_64", "aarch64" },
     status = "stable",
     categories = { "crypto", "tls", "ssl", "library" },
     keywords = { "openssl", "libssl", "libcrypto", "tls", "ssl", "https" },
@@ -19,11 +19,49 @@ package = {
 
     xvm_enable = true,
 
+
+
+    extensions = {
+        autoupdate = {
+            source = "https://github.com/xlings-res/openssl/releases",
+            resources = {
+                GLOBAL = {
+                    url = {
+                        linux = {
+                            x86_64 = "https://github.com/xlings-res/openssl/releases/download/${version}/openssl-${version}-linux-x86_64.tar.gz",
+                            aarch64 = "https://github.com/xlings-res/openssl/releases/download/${version}/openssl-${version}-linux-aarch64.tar.gz",
+                        },
+                    },
+                    required = true,
+                },
+                CN = {
+                    url = {
+                        linux = {
+                            x86_64 = "https://gitcode.com/xlings-res/openssl/releases/download/${version}/openssl-${version}-linux-x86_64.tar.gz",
+                            aarch64 = "https://gitcode.com/xlings-res/openssl/releases/download/${version}/openssl-${version}-linux-aarch64.tar.gz",
+                        },
+                    },
+                    required = true,
+                },
+            },
+            verify = "sha256-sidecar",
+        },
+    },
+
     xpm = {
         linux = {
-            deps = { "xim:glibc@>=2.39" },
+            deps = {
+                runtime = { "xim:glibc@>=2.39" },
+                build = { "xim:patchelf@0.18.0" },
+            },
             ["latest"] = { ref = "3.1.5" },
-            ["3.1.5"] = "XLINGS_RES",
+            ["3.1.5"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "db4c08d7133a0f21977a094abce7d352fba1193bc0c298d88505f1768c91b719",
+                    aarch64 = "74c46410a743345993d8c58afcde05c5ee8261ee1ecc1f6b8d8cae470f808540",
+                },
+            },
         },
     },
 }

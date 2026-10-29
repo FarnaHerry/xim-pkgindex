@@ -65,7 +65,7 @@ function download_scode(cmds)
 
     os.tryrm(tmp_project_dir)
     system.exec(string.format(
-        "xpkg-helper %s --export-path %s",
+        'xpkg-helper "%s" --export-path "%s"',
         xpkg, tmp_project_dir
     ))
 
@@ -130,7 +130,7 @@ function xpkg_main(installdir, ...)
     local make_install_cmd = "make install"
 
     if cmds["--install-by-sudo"] then
-        make_install_cmd = string.format("sudo %s/%s",
+        make_install_cmd = string.format("sudo %s/%s",  -- elevation-ok: --install-by-sudo is the person's own request
             system.bindir(),
             make_install_cmd
         )

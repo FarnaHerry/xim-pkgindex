@@ -16,7 +16,7 @@ package = {
     maintainers = {"https://github.com/mcpp-community/mcpp/graphs/contributors"},
     licenses = {"Apache-2.0"},
     repo = "https://github.com/mcpp-community/mcpp",
-    ci = { update = true },
+    ci = {  },
     homepage = "https://github.com/mcpp-community/mcpp",
     docs = "https://github.com/mcpp-community/mcpp#readme",
 
@@ -45,13 +45,250 @@ package = {
     --   LICENSE, README.md
     -- xvm registers `bindir = <install>/bin` so the binary is invoked
     -- directly; the shell launcher is only useful from the bundle root.
+
+
+    extensions = {
+        autoupdate = {
+            source = "https://github.com/xlings-res/mcpp/releases",
+            resources = {
+                GLOBAL = {
+                    url = {
+                        linux = {
+                            aarch64 = "https://github.com/xlings-res/mcpp/releases/download/${version}/mcpp-${version}-linux-aarch64.tar.gz",
+                            x86_64 = "https://github.com/xlings-res/mcpp/releases/download/${version}/mcpp-${version}-linux-x86_64.tar.gz",
+                        },
+                        macosx = {
+                            aarch64 = "https://github.com/xlings-res/mcpp/releases/download/${version}/mcpp-${version}-macosx-arm64.tar.gz",
+                        },
+                        windows = {
+                            x86_64 = "https://github.com/xlings-res/mcpp/releases/download/${version}/mcpp-${version}-windows-x86_64.zip",
+                        },
+                    },
+                    required = true,
+                },
+                CN = {
+                    url = {
+                        linux = {
+                            aarch64 = "https://gitcode.com/xlings-res/mcpp/releases/download/${version}/mcpp-${version}-linux-aarch64.tar.gz",
+                            x86_64 = "https://gitcode.com/xlings-res/mcpp/releases/download/${version}/mcpp-${version}-linux-x86_64.tar.gz",
+                        },
+                        macosx = {
+                            aarch64 = "https://gitcode.com/xlings-res/mcpp/releases/download/${version}/mcpp-${version}-macosx-arm64.tar.gz",
+                        },
+                        windows = {
+                            x86_64 = "https://gitcode.com/xlings-res/mcpp/releases/download/${version}/mcpp-${version}-windows-x86_64.zip",
+                        },
+                    },
+                    required = true,
+                },
+            },
+            verify = "sha256-sidecar",
+        },
+    },
+
     xpm = {
         source = "xlings-res",
         linux = {
             -- res_versioned: version-bump bot tracks mcpp-community/mcpp releases
             -- and appends checked XLINGS_RES entries (see version-check.py).
-            res_versioned = true,
-            ["latest"] = { ref = "2026.9.26.2" },
+
+            ["latest"] = { ref = "2026.10.29.1" },
+            ["2026.10.21.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "c4b065d84e188a501631121639afdb75772c29d346958cfbdfe616a0450aa62a",
+                    x86_64 = "41c42b3af886382fe0e019ddf1d2f619e77aaf3668a01695dc89422cf512f526",
+                },
+            },
+            ["2026.10.19.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "8157a0ca7478616989990c2c88e9791061a3f4703718bf20407b86af090d0007",
+                    x86_64 = "b9b83298c243a024bf9720f303d4d542958d7d8d9aea604d996039af2546c8a8",
+                },
+            },
+            ["2026.10.17.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "26ee13d506cd87029ff7b544a72a2591b17e35dc089ab8cbfa1c9f4ec3b59ae1",
+                    x86_64 = "75c362a4f7c5dd4282121a3536dd56a173fa2046dd9609882d720ad249d73f7f",
+                },
+            },
+            ["2026.10.16.3"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "86acdf67971a50d917ca05731771a72bf6c3fbff05a8463b7ab995b7ea13e697",
+                    x86_64 = "1a3c1adebe91615a3f2c7c3b64fe11e732efd8d8226be00f4bf413f38fa005f9",
+                },
+            },
+            ["2026.10.16.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "6d84fb483d96a1446f2250a323afe502c57470f22660721fa1e76a3c8b56ca5a",
+                    x86_64 = "2980659611d84c4342244e9721a418439acb8ba2bab6c307cea40dfc404ab0b1",
+                },
+            },
+            ["2026.10.16.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "c02bb6a033f3f28225112cd09f535cf2e6f1dacd3a26f7ead08a4a510413ae11",
+                    x86_64 = "857d13b44b0d30949ba539954e93ee09d20d42385ab154e9d57e6d926c5a6181",
+                },
+            },
+            ["2026.10.11.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "2e2a259831412019c07e941b35fb7c988e6a0ea6586332ea965f3bfd8178541c",
+                    x86_64 = "f0901297f220550b91e1cab75c6fa85e8e58c7c4b7eb6e84f347d3453e3faaff",
+                },
+            },
+            ["2026.10.10.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "ab2a189eda01f2fdbc9417ba41a020db8b89c7abbc51e0d48139de93cecc3df2",
+                    x86_64 = "a327339603999d9b1e36ce76e27ef750c6d748cda13e416cce8c06dd2071a366",
+                },
+            },
+            ["2026.10.10.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "adf6bfece9c35b2fb491bfebd61775532f67697242198209641b1744d2acfe37",
+                    x86_64 = "4c57e0cdb734aa570b9d7feacd9f18b46e00d40c4be98c5b3d59d58a0e228081",
+                },
+            },
+            ["2026.10.8.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "136a5c1a443157cf4deb6083ec8ca06d37acbd86b349ea1957d89de62bbcb2e9",
+                    x86_64 = "42dfbe5082da19240f3ce55950b6c622c34a538bebf5d7630520bb47afe32314",
+                },
+            },
+            ["2026.10.5.3"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "97acd9ccb0431a75f9ba20e984cd374ee250ad7ba95ee763f6fe9de9d8011f58",
+                    x86_64 = "f35be27122aa9cd3885242fde0ad445270b5531950c783a63303b8df40cd323b",
+                },
+            },
+            ["2026.10.5.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "a789a20db72f570adca274ea331087dc562da9593a621ab4f733ce50c8438dd4",
+                    x86_64 = "0a2686439f94e766963d2ea51075a54cdf5373a15eea666bc2d1aafa7716676f",
+                },
+            },
+            ["2026.10.5.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "046486759b1f55466033ebb12626edab01ea2323c046b0cc22f7b889e0d823f0",
+                    x86_64 = "604832bc78f4241fa6e2eeeb5732c8df9f06a6811ff3161f3dc8c919631b7c35",
+                },
+            },
+            ["2026.10.3.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "5e1a6454303fe686f932ff016e4a8d94c19a6e4e62c0cb69097b29a4b8b819b9",
+                    x86_64 = "51a139384611d5b6d73bdeeca0c02377539dbd4f322e86b151e387a65313ba05",
+                },
+            },
+            ["2026.10.1.3"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "a02f60e239b580c9fc4a03e6942ff2f7a0e4ea137af82f6b09a7dbab6f9db5d6",
+                    x86_64 = "10f43229e80baef0d0cb998f331c124340f77a4b1a00932faed016fc9bb8e3e6",
+                },
+            },
+            ["2026.10.1.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "f425f5ac950d89de34285f7a5de3c4d9c0b16fbce62055a8d88cabd2f4a29f59",
+                    x86_64 = "664bd4eb2888121a66843635cbe888ea7953b41adab0d7342987b887360e1067",
+                },
+            },
+            ["2026.10.1.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "bf10ce4c2da032281ec2cc7e5f9b92a015f2ac13e2b929698b586631b1766c8d",
+                    x86_64 = "4d6baf0e31bb6990bce1bd43d1a17d5862463705b44becafe4f1d35a0e397d40",
+                },
+            },
+            ["2026.9.30.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "c1cccafb2cfcd66f932b8acbdd403d378c3e7ec518cd253aba01bbf1a8809892",
+                    x86_64 = "c8cb6f735a58530c37d2638d15bbb3b538bbf59d377c33d73ca4676c7b887613",
+                },
+            },
+            ["2026.9.30.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "af94d1b94b24f8b7dcd9733f21def6a3fe28b74502dbb1d618765c56b49eb31a",
+                    x86_64 = "2bd1753dc960c03928295bf2abf06bf37ab50488072a1ecd10bb6cfc0571e83d",
+                },
+            },
+            ["2026.9.29.5"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "8eee1444788600e2000a6d6696e34a21f257cb645c01e4e4aca0dd024dfb9738",
+                    x86_64 = "355e90efc17c65e8a05d4cef53f0da521b8321b80658342ea891ceb0e0dc5076",
+                },
+            },
+            ["2026.9.29.4"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "88b04fd79ada45e014995e1581d6441e9b5454849763521fae126c4fce9f739c",
+                    x86_64 = "101c2db6f9eb817a3caa5619f5424cae20dfadaa953142355e2c712eb793260d",
+                },
+            },
+            ["2026.9.29.3"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "aa40093a2d5f9b0fb463d89b5fe298db77a498df5e533228521b8447347061c0",
+                    x86_64 = "a1b23d70e6f8fe89468160cb606d533fc8694acf8b0fca96af69bbaae81f3421",
+                },
+            },
+            ["2026.9.29.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "a629a1dc36aa0671c36fff7ec395997756c8ceee84e3dad975f1940a59c500b3",
+                    x86_64 = "58263fa09edf16ed09f1613b12522f6c4a9229cbe21a7a5a590bd64467a02227",
+                },
+            },
+            ["2026.9.29.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "90806116d6b31e3f16fcc75f468ef47fe1d0616819459049c9bbd6f09d112a48",
+                    x86_64 = "e7175d8f00aeb1b6dae3f1f60d84900bc285df05a7972f06821bdab38295e088",
+                },
+            },
+            ["2026.9.28.3"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "f3a08988ef42bce1df2d7590abcb61bd8dd968d7239c817254d9b6f02f8c3687",
+                    x86_64 = "635601ca6a5af06931adc16eca2f1cf9bb7e9f3b7fd7a75546b17136600c391c",
+                },
+            },
+            ["2026.9.28.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "12551c17c50aabdf4181fc38110e703283a94f1ab538564f88fc9b3169ded555",
+                    x86_64 = "c3341c19d1b7dc15e36917f703160fb2a58f86e5e98e21363592359f94089bab",
+                },
+            },
+            ["2026.9.28.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "a1d9cad9d13ad9976c50eca22102e0e39c3d93ffab5c2d58af94f700d1463aaf",
+                    x86_64 = "b7ecb62d659bac9ed218fe046c0c87b745fda1ecaa3df9fec89352eedd1817bd",
+                },
+            },
+            ["2026.9.27.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "b76443839e28f6b18c07f394a9c441f1550bd5d7e6980bf811d7f4fa190faa6a",
+                    x86_64 = "8fc094e0342646936ab2d6b50344f183090a0a23d4d71a855bb738da50c7529f",
+                },
+            },
             ["2026.9.26.2"] = {
                 url = "XLINGS_RES",
                 sha256 = {
@@ -1156,12 +1393,276 @@ package = {
             ["0.0.3"] = "XLINGS_RES",
             ["0.0.2"] = "XLINGS_RES",
             ["0.0.1"] = "XLINGS_RES",
+            ["2026.10.24.1"] = {
+                aarch64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.24.1/mcpp-2026.10.24.1-linux-aarch64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.24.1/mcpp-2026.10.24.1-linux-aarch64.tar.gz",
+                    },
+                    sha256 = "1198ef59b40c5fc278496a31af9252a5c43b01ee586657c2415e301bfe3b18be",
+                },
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.24.1/mcpp-2026.10.24.1-linux-x86_64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.24.1/mcpp-2026.10.24.1-linux-x86_64.tar.gz",
+                    },
+                    sha256 = "b9daf773d0a29825cba7234eafd07bd17e1a9408db731742ea56b3ee12f582a8",
+                },
+            },
+            ["2026.10.26.1"] = {
+                aarch64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.26.1/mcpp-2026.10.26.1-linux-aarch64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.26.1/mcpp-2026.10.26.1-linux-aarch64.tar.gz",
+                    },
+                    sha256 = "e860109f54e2ee00282d392f7edbdd8d884571ccb6414ebb9f088038dfe46379",
+                },
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.26.1/mcpp-2026.10.26.1-linux-x86_64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.26.1/mcpp-2026.10.26.1-linux-x86_64.tar.gz",
+                    },
+                    sha256 = "e07461d4d77f0db07405c8c9bda9b1d307d66b72c48d1f3caba2af12633c390a",
+                },
+            },
+            ["2026.10.26.2"] = {
+                aarch64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.26.2/mcpp-2026.10.26.2-linux-aarch64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.26.2/mcpp-2026.10.26.2-linux-aarch64.tar.gz",
+                    },
+                    sha256 = "85c8e1018edfebe9117c1482d9330b70fc72190b9b15670239a67759be6cc002",
+                },
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.26.2/mcpp-2026.10.26.2-linux-x86_64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.26.2/mcpp-2026.10.26.2-linux-x86_64.tar.gz",
+                    },
+                    sha256 = "e31c4cd35a3a3cc496084e87a5064ce779f8ab4ff98029f639ef12ee51feaa55",
+                },
+            },
+            ["2026.10.27.1"] = {
+                aarch64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.27.1/mcpp-2026.10.27.1-linux-aarch64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.27.1/mcpp-2026.10.27.1-linux-aarch64.tar.gz",
+                    },
+                    sha256 = "ebbab82865dcee40778894d2629a16951532327e4b0a94176c58188efe5a46e9",
+                },
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.27.1/mcpp-2026.10.27.1-linux-x86_64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.27.1/mcpp-2026.10.27.1-linux-x86_64.tar.gz",
+                    },
+                    sha256 = "4e97fb785b8a4a2816362daa690e9997cade6120a2d243eb95a980f6b816aa26",
+                },
+            },
+            ["2026.10.28.1"] = {
+                aarch64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.28.1/mcpp-2026.10.28.1-linux-aarch64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.28.1/mcpp-2026.10.28.1-linux-aarch64.tar.gz",
+                    },
+                    sha256 = "0efbc518ebd0e1ab0718b83a2f69ee1cc25de246b3ea8b268be815ba5aff1202",
+                },
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.28.1/mcpp-2026.10.28.1-linux-x86_64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.28.1/mcpp-2026.10.28.1-linux-x86_64.tar.gz",
+                    },
+                    sha256 = "b51fe232e22351dd4c7a265adb957b56c5d1bf2fbf81b0a4a8d953bb6c59e05e",
+                },
+            },
+            ["2026.10.29.1"] = {
+                aarch64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.29.1/mcpp-2026.10.29.1-linux-aarch64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.29.1/mcpp-2026.10.29.1-linux-aarch64.tar.gz",
+                    },
+                    sha256 = "d56498bd8c791414d6776961cc0799b9190b130f63240e96d3104ca8e1bd9b74",
+                },
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.29.1/mcpp-2026.10.29.1-linux-x86_64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.29.1/mcpp-2026.10.29.1-linux-x86_64.tar.gz",
+                    },
+                    sha256 = "7f0eb20d6f436b558d98e0916cf143c5d08a2e2b036dbbc57758b38fa024014f",
+                },
+            },
         },
         macosx = {
             -- res_versioned: version-bump bot tracks mcpp-community/mcpp releases
             -- and appends checked XLINGS_RES entries (see version-check.py).
-            res_versioned = true,
-            ["latest"] = { ref = "2026.9.26.2" },
+
+            ["latest"] = { ref = "2026.10.29.1" },
+            ["2026.10.21.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "15287ee4c09035d36958e538acc6362433f275ff10b3cd2e2c1fe27e73cb7454",
+                },
+            },
+            ["2026.10.19.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "9dbb6dcec3a1d4dd1e3b49fb96a3e20dbc242b98a3eb2c7972f3d138bdf7a6a0",
+                },
+            },
+            ["2026.10.17.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "bf367f87337523825a1e2869f4b02ca9018fc3eb35318b45cd0178bb61d5428b",
+                },
+            },
+            ["2026.10.16.3"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "f21cb8b0d95cff5b56fd1a3a21160a55ecb01d480a4bf0b091aa79ecbda58b2d",
+                },
+            },
+            ["2026.10.16.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "b12d4752639bc14fc82a2251826562f51b4eb26340ba6c7d4fa02c4ed7fdf0ec",
+                },
+            },
+            ["2026.10.16.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "2e0f68bfb36519bc8c0fd9c4e67ab294a26890b0b5cfd6ccd5e9cd1e12f58973",
+                },
+            },
+            ["2026.10.11.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "1dab62023bb7d390394ee9188cf2f51bd7997a8e5541001c105af23ce3951bbc",
+                },
+            },
+            ["2026.10.10.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "466cfad12a8050d10cfcedac2a9ebed6f810e56d913e515d795472d6652330bf",
+                },
+            },
+            ["2026.10.10.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "9a230d6160463932cd6358b1c7e2f51a956d9ad33570e5c90369325564088bac",
+                },
+            },
+            ["2026.10.8.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "4b58ccca598b2e7b11381208e160b1bf7ad37277707392f6f51195643d123d51",
+                },
+            },
+            ["2026.10.5.3"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "0f879fa9bde4bb5d23629bbe3ef65e10411a7ae403c225dd0bff462935d4aa46",
+                },
+            },
+            ["2026.10.5.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "e02128a625fb7055db851f6c37372623ddec279934e2e3b13b4a3e0d3f0ca26b",
+                },
+            },
+            ["2026.10.5.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "44d4919c6314bd62b2d791d5f168fc345e85ddfa0235725d7c2c7116ebeffa75",
+                },
+            },
+            ["2026.10.3.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "9daade8aa6031130dd2b6dfeb4abe9796d9aebcdf857a774ce96923860afee33",
+                },
+            },
+            ["2026.10.1.3"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "1f4806b2fd53bd77e890add878fa94b5f9d5a4130ad3a1ad5b8d9a4ef85a961d",
+                },
+            },
+            ["2026.10.1.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "c7d72077d6d5c3e6e09d30f92f9fa84d0541676c71b464e3e01a48bbcda96d83",
+                },
+            },
+            ["2026.10.1.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "18eeea1ca5e5a21dbeed6b96f41a0e2a915110c964f0c7db6480ee1610833d82",
+                },
+            },
+            ["2026.9.30.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "d72bdec6b42683db27dbd58586afc6445c6993f214e8d12f3b6f480d07af1c6c",
+                },
+            },
+            ["2026.9.30.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "2f8bd4c8f8f4328dc2f0f7330c12908da8b2d0d346d8199c7503dec915299f9b",
+                },
+            },
+            ["2026.9.29.5"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "ce6fa552a1790c12289705fe806efcc5f0dcb51c23ee3a8940ddeec0bc393599",
+                },
+            },
+            ["2026.9.29.4"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "99612dd5ce8203e5a196970e7b6fa79e6b21dde3d01d8c56d90531e3f800bd68",
+                },
+            },
+            ["2026.9.29.3"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "b24f20223b95b1036580e94f0561a42e66952a6300ed7ccd8fc2ba03cc6d9aad",
+                },
+            },
+            ["2026.9.29.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "d7666508c387c36e09916c57ed6715d6376e565163da050ea29257bfc54f5e31",
+                },
+            },
+            ["2026.9.29.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "032073f481bc14805858c80bcfda0ed9da64af1c3ca746746e85e12d5befd378",
+                },
+            },
+            ["2026.9.28.3"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "8d1dad057f30207fb4134d3ef5374597bc5fef2d69e8054ed26b4181073682b0",
+                },
+            },
+            ["2026.9.28.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "191445350169d09d0a7ffef3aa5025cf818f39294764fb1352e558190c8a4bea",
+                },
+            },
+            ["2026.9.28.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "f1125321afb062d8331bf0d1a21d03cb027df5db92b7d7cd1321815cd255ca89",
+                },
+            },
+            ["2026.9.27.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    aarch64 = "59dd8b828e746a19dd7da2cdd8dbf34a9a5c28e8ba45101d475b5b2f982f29c3",
+                },
+            },
             ["2026.9.26.2"] = {
                 url = "XLINGS_RES",
                 sha256 = {
@@ -2105,12 +2606,234 @@ package = {
             ["0.0.19"] = "XLINGS_RES",
             ["0.0.17"] = "XLINGS_RES",
             ["0.0.16"] = "XLINGS_RES",
+            ["2026.10.24.1"] = {
+                aarch64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.24.1/mcpp-2026.10.24.1-macosx-arm64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.24.1/mcpp-2026.10.24.1-macosx-arm64.tar.gz",
+                    },
+                    sha256 = "2c1ff6d186797815ccbafbdbfd85cbca8b247e17845f331db670636b80269e74",
+                },
+            },
+            ["2026.10.26.1"] = {
+                aarch64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.26.1/mcpp-2026.10.26.1-macosx-arm64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.26.1/mcpp-2026.10.26.1-macosx-arm64.tar.gz",
+                    },
+                    sha256 = "2c1076219fae17f4bedd83e9d563335dad2f88ab77df790df85382a5865c0dc2",
+                },
+            },
+            ["2026.10.26.2"] = {
+                aarch64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.26.2/mcpp-2026.10.26.2-macosx-arm64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.26.2/mcpp-2026.10.26.2-macosx-arm64.tar.gz",
+                    },
+                    sha256 = "33153a79f6972e82844b4d05cba2f6d75eb4d593e260618436066b4057572659",
+                },
+            },
+            ["2026.10.27.1"] = {
+                aarch64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.27.1/mcpp-2026.10.27.1-macosx-arm64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.27.1/mcpp-2026.10.27.1-macosx-arm64.tar.gz",
+                    },
+                    sha256 = "a415078f5594ea8e90522e0528d8ef2c5cd3aaeb89597cdada914f661e820676",
+                },
+            },
+            ["2026.10.28.1"] = {
+                aarch64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.28.1/mcpp-2026.10.28.1-macosx-arm64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.28.1/mcpp-2026.10.28.1-macosx-arm64.tar.gz",
+                    },
+                    sha256 = "989cfcfec0379419a97d50e031a6b6ef5dcc13dabff806b636b3c1b672e453d3",
+                },
+            },
+            ["2026.10.29.1"] = {
+                aarch64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.29.1/mcpp-2026.10.29.1-macosx-arm64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.29.1/mcpp-2026.10.29.1-macosx-arm64.tar.gz",
+                    },
+                    sha256 = "6ec88bc50d5911afa0e612864479b1c139c7925b22bdefb27dcbf84d703684ee",
+                },
+            },
         },
         windows = {
             -- res_versioned: version-bump bot tracks mcpp-community/mcpp releases
             -- and appends checked XLINGS_RES entries (see version-check.py).
-            res_versioned = true,
-            ["latest"] = { ref = "2026.9.26.2" },
+
+            ["latest"] = { ref = "2026.10.29.1" },
+            ["2026.10.21.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "6b6a29d1c4892295782ddb523d37f8b266ae720cc2d2d0276dc3031ebe0cd553",
+                },
+            },
+            ["2026.10.19.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "b7244adcdc0661d003d15ad6c478516857af71704dab664aa6b4c747517a3b3b",
+                },
+            },
+            ["2026.10.17.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "ed3f3ef28d6c54d1c1e26998794db6f0349cd1659b4212e091c8b982c1c4851e",
+                },
+            },
+            ["2026.10.16.3"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "a2dcee0398dd9e349ecfd5562b7b9b0ce3c0751f4b60c005272445f10d80dae5",
+                },
+            },
+            ["2026.10.16.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "962bdf906727c7435b9557a6044146500c0906788aa54f83cd2ff0968ec08d07",
+                },
+            },
+            ["2026.10.16.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "50fa39e24c463caf51022997cce463d8c6ef740075bef733323027f720642408",
+                },
+            },
+            ["2026.10.11.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "474066ed019effe6a9f0162f9ffbef326a5c0c5b21c414e3c423eca85ff03e64",
+                },
+            },
+            ["2026.10.10.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "ff3384325a5dc2f903bcd591ae971a1e1b501f485e55b3245953ae4f9f08a340",
+                },
+            },
+            ["2026.10.10.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "326cfc735ef836ce4287f6b4da121c43aa5ef7d971ef21c467766f358d762496",
+                },
+            },
+            ["2026.10.8.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "490a9b4be996843cc426d16998674f1c5cbc7f06158b927cfbe930b19a709627",
+                },
+            },
+            ["2026.10.5.3"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "52d61cb6a54cdc205f59e6010e5789da8b7ed298e4367dccb7b7fdf29ede51eb",
+                },
+            },
+            ["2026.10.5.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "6fc4dd258f57ee2709b615d72082b2ae32c1a4b8d24556322beb54951616c0ea",
+                },
+            },
+            ["2026.10.5.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "fd3f45c2a779b25d61051999e27879425bf077a133ac72f3a6e2a918563c99ad",
+                },
+            },
+            ["2026.10.3.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "1810a1bf0f538962782123b9fce3e096935c15067267b308ead670e230933e34",
+                },
+            },
+            ["2026.10.1.3"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "5378c894fe3b5583cc1baa6e0d1b5a222f180c936497da1aede470caff21a58d",
+                },
+            },
+            ["2026.10.1.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "4ac04330bd05c963109fff1fc6c01395edab8960cef0cf5257178fcd4fb2ef4f",
+                },
+            },
+            ["2026.10.1.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "84cbad824eee4015bae376352d3c4d147d4feb4a08a64504581201a816eeafdb",
+                },
+            },
+            ["2026.9.30.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "360721f20b543250cd56631c28ae3a1890b35dd5953cfe7a0be11858f0fcd21f",
+                },
+            },
+            ["2026.9.30.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "c8ae709dbbac52b73ad182f584944e54f3435d8e60a38d6931e091e723bfe3f7",
+                },
+            },
+            ["2026.9.29.5"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "d7b909669ffd14c94016ff17ccb3c7ae9c571647e661d6e9ae083509679880eb",
+                },
+            },
+            ["2026.9.29.4"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "5039f3f287ca55ec99deed8bf4abd9ced80acf4d514943dfbc2103de0cf062d1",
+                },
+            },
+            ["2026.9.29.3"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "95d1660297e0c563466b6d7077c7c1d8357d6336555aa4c1f28d28e67732dcd0",
+                },
+            },
+            ["2026.9.29.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "626da708a625671259b6a4e4c1965f4e6eab025ac52d99a3949c0540806129d1",
+                },
+            },
+            ["2026.9.29.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "c2078ed768994ec3945f3549d815af2c68a4a5ec70d1b4f7ab5ba4e74434bb74",
+                },
+            },
+            ["2026.9.28.3"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "6e5ecdf7f4a82ea8e3a558c3c77aa853d7ec91bf29205c653cefb14fe4d315a9",
+                },
+            },
+            ["2026.9.28.2"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "40fbf8f2661ce279aebb635ac4768ea907c959dc86f9f2a72edc93f6f1f299ff",
+                },
+            },
+            ["2026.9.28.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "84c5dc1f1ce37aa49c9b45cd87e1b7a6400e65a102b9e5bc117219c7212af28d",
+                },
+            },
+            ["2026.9.27.1"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "c928bd5267e82d6e0d8e8831c5f05fbf29d75a055df5911144b5c0a79c9c57ee",
+                },
+            },
             ["2026.9.26.2"] = {
                 url = "XLINGS_RES",
                 sha256 = {
@@ -3053,6 +3776,60 @@ package = {
             ["0.0.20"] = "XLINGS_RES",
             ["0.0.19"] = "XLINGS_RES",
             ["0.0.17"] = "XLINGS_RES",
+            ["2026.10.24.1"] = {
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.24.1/mcpp-2026.10.24.1-windows-x86_64.zip",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.24.1/mcpp-2026.10.24.1-windows-x86_64.zip",
+                    },
+                    sha256 = "ac4f0402fdd49db8b62677f240bb9888031a7f35f4790ce96061da5b0887a8e6",
+                },
+            },
+            ["2026.10.26.1"] = {
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.26.1/mcpp-2026.10.26.1-windows-x86_64.zip",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.26.1/mcpp-2026.10.26.1-windows-x86_64.zip",
+                    },
+                    sha256 = "cb23ddd765570cd94db31407ab56951f175c67fe38b5f40e62522f518b42e989",
+                },
+            },
+            ["2026.10.26.2"] = {
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.26.2/mcpp-2026.10.26.2-windows-x86_64.zip",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.26.2/mcpp-2026.10.26.2-windows-x86_64.zip",
+                    },
+                    sha256 = "862ddd69338352e79efc7f850bef2e0b551816ef17a63eede148529ad7a14c45",
+                },
+            },
+            ["2026.10.27.1"] = {
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.27.1/mcpp-2026.10.27.1-windows-x86_64.zip",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.27.1/mcpp-2026.10.27.1-windows-x86_64.zip",
+                    },
+                    sha256 = "c3885675425d331d5405274acfb19f83b38fbf2f99be4971d1d29f068f0d8197",
+                },
+            },
+            ["2026.10.28.1"] = {
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.28.1/mcpp-2026.10.28.1-windows-x86_64.zip",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.28.1/mcpp-2026.10.28.1-windows-x86_64.zip",
+                    },
+                    sha256 = "16f8ff9a1cbbf91396ab20a217def39edcafe7041ea40b2fa8408c7bec3c39d5",
+                },
+            },
+            ["2026.10.29.1"] = {
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/mcpp/releases/download/2026.10.29.1/mcpp-2026.10.29.1-windows-x86_64.zip",
+                        CN = "https://gitcode.com/xlings-res/mcpp/releases/download/2026.10.29.1/mcpp-2026.10.29.1-windows-x86_64.zip",
+                    },
+                    sha256 = "4a5f49734d9de2091962595c522708a22e7155d3a943e26ef320b5321df92ee8",
+                },
+            },
         },
     },
 }

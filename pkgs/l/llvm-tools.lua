@@ -9,12 +9,45 @@ package = {
     repo = "https://github.com/llvm/llvm-project",
 
     type = "package",
-    archs = {"x86_64", "arm64"},
+    archs = {"x86_64", "arm64", "aarch64"},
     status = "stable",
     categories = {"toolchain", "llvm", "formatter", "linter"},
     keywords = {"clang-format", "clang-tidy", "clangd", "llvm", "lsp"},
 
     xvm_enable = true,
+
+
+
+    extensions = {
+        autoupdate = {
+            source = "https://github.com/xlings-res/llvm/releases",
+            resources = {
+                GLOBAL = {
+                    url = {
+                        linux = {
+                            aarch64 = "https://github.com/xlings-res/llvm/releases/download/${version}/llvm-tools-${version}-linux-aarch64.tar.gz",
+                            x86_64 = "https://github.com/xlings-res/llvm/releases/download/${version}/llvm-tools-${version}-linux-x86_64.tar.gz",
+                        },
+                        windows = "https://github.com/xlings-res/llvm/releases/download/${version}/llvm-tools-${version}-windows-x86_64.zip",
+                        macosx = "https://github.com/xlings-res/llvm/releases/download/${version}/llvm-tools-${version}-macosx-arm64.tar.xz",
+                    },
+                    required = true,
+                },
+                CN = {
+                    url = {
+                        linux = {
+                            aarch64 = "https://gitcode.com/xlings-res/llvm/releases/download/${version}/llvm-tools-${version}-linux-aarch64.tar.gz",
+                            x86_64 = "https://gitcode.com/xlings-res/llvm/releases/download/${version}/llvm-tools-${version}-linux-x86_64.tar.gz",
+                        },
+                        windows = "https://gitcode.com/xlings-res/llvm/releases/download/${version}/llvm-tools-${version}-windows-x86_64.zip",
+                        macosx = "https://gitcode.com/xlings-res/llvm/releases/download/${version}/llvm-tools-${version}-macosx-arm64.tar.xz",
+                    },
+                    required = true,
+                },
+            },
+            verify = "sha256-sidecar",
+        },
+    },
 
     xpm = {
         linux = {
@@ -40,18 +73,38 @@ package = {
             deps = { "xim:glibc", "xim:gcc-runtime", "xim:zlib" },
             ["latest"] = { ref = "22.1.8" },
             ["20.1.7"] = {
-                url = {
-                    GLOBAL = "https://github.com/xlings-res/llvm/releases/download/20.1.7/llvm-tools-20.1.7-linux-x86_64.tar.gz",
-                    CN = "https://gitcode.com/xlings-res/llvm/releases/download/20.1.7/llvm-tools-20.1.7-linux-x86_64.tar.gz",
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/llvm/releases/download/20.1.7/llvm-tools-20.1.7-linux-x86_64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/llvm/releases/download/20.1.7/llvm-tools-20.1.7-linux-x86_64.tar.gz",
+                    },
+                    sha256 = nil,
                 },
-                sha256 = nil,
             },
             ["22.1.8"] = {
-                url = {
-                    GLOBAL = "https://github.com/xlings-res/llvm/releases/download/22.1.8/llvm-tools-22.1.8-linux-x86_64.tar.gz",
-                    CN = "https://gitcode.com/xlings-res/llvm/releases/download/22.1.8/llvm-tools-22.1.8-linux-x86_64.tar.gz",
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/llvm/releases/download/22.1.8/llvm-tools-22.1.8-linux-x86_64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/llvm/releases/download/22.1.8/llvm-tools-22.1.8-linux-x86_64.tar.gz",
+                    },
+                    sha256 = nil,
                 },
-                sha256 = nil,
+            },
+            ["23.1.3"] = {
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/llvm/releases/download/23.1.3/llvm-tools-23.1.3-linux-x86_64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/llvm/releases/download/23.1.3/llvm-tools-23.1.3-linux-x86_64.tar.gz",
+                    },
+                    sha256 = "6c03abca4dff4e12368ed0ce17ec32efdefd92ca7083a3aaa12c113682cb6026",
+                },
+                aarch64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/llvm/releases/download/23.1.3/llvm-tools-23.1.3-linux-aarch64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/llvm/releases/download/23.1.3/llvm-tools-23.1.3-linux-aarch64.tar.gz",
+                    },
+                    sha256 = "e9c3675a170d6f1aaa21ee2fd9c8ba7c67813aab4721d87772f45a83c0c89ad2",
+                },
             },
         },
         windows = {
@@ -69,6 +122,13 @@ package = {
                     CN = "https://gitcode.com/xlings-res/llvm/releases/download/22.1.8/llvm-tools-22.1.8-windows-x86_64.zip",
                 },
                 sha256 = nil,
+            },
+            ["23.1.3"] = {
+                url = {
+                    GLOBAL = "https://github.com/xlings-res/llvm/releases/download/23.1.3/llvm-tools-23.1.3-windows-x86_64.zip",
+                    CN = "https://gitcode.com/xlings-res/llvm/releases/download/23.1.3/llvm-tools-23.1.3-windows-x86_64.zip",
+                },
+                sha256 = "a17a959e3df3fb00336f6f752a13b392a914e838b8bd93c22036c792ec2426df",
             },
         },
         -- Apple Silicon only, mirroring llvm.lua's macosx (which ships
@@ -93,6 +153,13 @@ package = {
                     CN = "https://gitcode.com/xlings-res/llvm/releases/download/22.1.8/llvm-tools-22.1.8-macosx-arm64.tar.xz",
                 },
                 sha256 = nil,
+            },
+            ["23.1.3"] = {
+                url = {
+                    GLOBAL = "https://github.com/xlings-res/llvm/releases/download/23.1.3/llvm-tools-23.1.3-macosx-arm64.tar.xz",
+                    CN = "https://gitcode.com/xlings-res/llvm/releases/download/23.1.3/llvm-tools-23.1.3-macosx-arm64.tar.xz",
+                },
+                sha256 = "a66806a1d80e7088ea3ca9665ad021f64946138049a8b86937a15d6d2c39fb08",
             },
         },
     },

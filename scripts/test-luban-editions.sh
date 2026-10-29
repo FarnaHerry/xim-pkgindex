@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# Luban editions from this checkout, used for real (xlings: Luban OS design
+# part 2 §2; the aarch64 design §5): nano, tiny, tiny-musl and core are made
+# and entered on this machine's architecture -- core builds and runs a C++23
+# program with its own gcc, and mcpp builds one with that gcc -- and on x86_64 the desktop edition is made and
+# runs dsh in its root, and tiny is exported as a live ISO by
+# its boot profile (virt: the 6.12 LTS virt kernel and limine from xlings-res)
+# and boots under qemu (xim:qemu-x86, from the index) to its init. The
+# aarch64 image paths are xlings' own CI (they need its newest client).
+#
+#   scripts/test-luban-editions.sh <home>     # xlings / luban on PATH (the build under test)
+set -euo pipefail
+
+home="$1"; mkdir -p "$home"
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export XLINGS_HOME="$home"
+log() { printf '\n== %s\n' "$*"; }
+fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+mkdir -p "$home/bin"
+cp "$(command -v xlings)" "$home/bin/xlings"
+# luban, and luban-init: an exported machine's stage-0 (boot/xlings-init hands to it).
+for tool in luban luban-init; do
+    cp "$(dirname "$(readlink -f "$(command -v xlings)")")/$tool" "$home/bin/$tool"
+done
+[[ -f "$home/.xlings.json" ]] || printf '{"mirror":"GLOBAL","index_repos":[{"name":"xim","url":"%s"}]}\n' "$repo" > "$home/.xlings.json"
+X() { "$home/bin/xlings" "$@"; }
+L() { "$home/bin/luban" "$@"; }
+X self init >/dev/null
+X install -y xim:bwrap >/dev/null
+
+arch="$(uname -m)"
+for e in nano tiny luban-tiny-musl core; do
+    log "luban new e-$e --edition $e"
+    L new "e-$e" --edition "$e" || fail "luban new $e"
+    # luban says what it was made from, wherever the system lives (its own
+    # prefix domain or the home's).
+    rec="$(L status "e-$e" --json)"
+    # subos:luban-<e> for a client before 2026.10.18.1, luban:<e> since.
+    grep -Eq '"edition": *"(subos|luban):' <<<"$rec" || fail "$e: no edition record: $rec"
+done
+X subos exec e-nano -- /usr/bin/xlings --version >/dev/null || fail "nano: its xlings"
+L run e-tiny -- /bin/sh -c 'grep -q ID=luban /usr/share/factory/etc/os-release && grep -q luban-init /etc/inittab' \
+    || fail "tiny: os-release / luban-init"
+L run e-luban-tiny-musl -- /bin/sh -c 'ls /usr/lib/ld-musl-* /lib/ld-musl-* 2>/dev/null | grep -q musl' \
+    || fail "tiny-musl: no musl loader"
+# A Luban system is luban's: its upgrade is luban's (a system in the /xlings
+# domain answers xlings' own upgrade through a relay).
+L upgrade e-tiny --dry-run | grep -q "up to date" || fail "a fresh tiny is the newest"
+L run e-luban-tiny-musl -- /bin/sh -c 'ls /usr/lib/ld-musl-'"$arch"'.so.1 /lib/ld-musl-'"$arch"'.so.1 2>/dev/null | grep -q .' \
+    || fail "tiny-musl: not this machine's musl loader"
+
+log "core: its own gcc builds C++23 ($arch)"
+L run e-core -- /bin/sh -c 'cd /tmp && printf "import std;\nint main(){ std::println(\"core {}\", __cplusplus >= 202302L); }\n" > t.cpp \
+    && g++ -std=c++23 -fmodules -fsearch-include-path -c bits/std.cc -o std.o && g++ -std=c++23 -fmodules t.cpp std.o -o t && ./t' \
+    | tee "$home/core.out" | grep -q "core true" || fail "core: C++23 with import std"
+L run e-core -- /bin/sh -c 'git --version && gh --version && vim --version | head -1 && fish --version && make --version | head -1' \
+    || fail "core: its tools"
+
+# mcpp in the system builds with the system's gcc: /etc/mcpp/config.toml names
+# /xlings as its upstream, so the toolchain is linked, not downloaded (mcpp
+# design 2026-10-16 §9.5).
+log "core: mcpp builds and runs a project with the system's gcc ($arch)"
+L run e-core -- /bin/sh -c 'cd /tmp && rm -rf hm && mcpp new hm >/dev/null && cd hm && mcpp build > build.log 2>&1; r=$?; cat build.log; [ $r -eq 0 ] || exit $r
+    mcpp run | grep -q "Hello from hm" || exit 1
+    if grep -q "Downloading xim:gcc" build.log; then echo "the system gcc was downloaded again"; exit 1; fi
+    gcc=$(ls -d "$HOME"/.mcpp/registry/data/xpkgs/xim-x-gcc/16.1.0) && [ -L "$gcc" ] && readlink "$gcc" | grep -q "^/xlings/"' \
+    | tee "$home/core-mcpp.out" || fail "core: mcpp with the system's gcc"
+
+if [[ "$arch" != x86_64 ]]; then
+    echo "PASS ($arch): nano, tiny, tiny-musl, core made and entered; core builds C++23, and mcpp builds with its gcc"
+    exit 0
+fi
+
+log "luban new e-desktop --edition desktop: its tools run in its root (x86_64: xdesk, dsh)"
+# A desktop logs a user in: the default one (lubanoser), as -y takes it.
+L new e-desktop --edition desktop -y || fail "luban new desktop"
+L run e-desktop -- /bin/sh -c 'gh --version && dsh --version && dsh --profile web --dump-config | grep -q dsh-base' \
+    || fail "desktop: dsh in its root"
+
+# The desktops (a client from 2026.10.18.1: --desktop at new, luban: desktops):
+# each drawn in a system, as the Luban OS window receives it (opensal.wire
+# from `luban __desktop <session>`): a picture, and a panel along its bottom.
+if [[ "$(printf '%s\n' "2026.10.18.1" "$(L --version | awk '{print $2}')" | sort -V | head -1)" == 2026.10.18.1 ]]; then
+    log "desktops: labwc, LXQt and KDE in one system, each drawn"
+    L new e-desk --edition tiny --desktop labwc --xpkg luban:lxqt --xpkg luban:kde -y \
+        || fail "luban new --desktop labwc --xpkg luban:lxqt --xpkg luban:kde"
+    L status e-desk --check | tee "$home/desk-check.out" | tail -3
+    for s in labwc lxqt kde; do
+        python3 "$repo/scripts/luban-desktop-probe.py" --panel --settle 20 --timeout 180 -- \
+            "$home/bin/xlings" subos use e-desk --cmd "exec luban __desktop $s --size 1280x720" \
+            >"$home/desktop-$s.out" 2>"$home/desktop-$s.log" || true
+        echo "$s: $(cat "$home/desktop-$s.out")"
+        grep -q '^PASS' "$home/desktop-$s.out" || { tail -30 "$home/desktop-$s.log"; fail "desktop $s did not draw"; }
+    done
+fi
+
+log "luban export e-tiny tiny.iso --boot virt"
+L export e-tiny "$home/tiny.iso" --boot virt || fail "export --boot virt"
+grep -aq "console=ttyS0" "$home/tiny.iso" || fail "the virt profile's command line is not in the image"
+# Looked for from inside: a system in the /xlings domain links its files by
+# their paths there, which the host does not have.
+L run e-tiny -- /bin/sh -c 'ls /usr/lib/modules/*-virt/vmlinuz' >/dev/null || fail "the virt kernel is not in the root"
+
+log "boot it (qemu, xim:qemu-x86)"
+X install -y xim:qemu-x86 >/dev/null || fail "xim:qemu-x86"
+qemu="$(ls "$home"/data/xpkgs/xim-x-qemu-x86/*/bin/qemu-system-x86_64 | head -1)"
+accel=(); [[ -w /dev/kvm ]] && accel=(-enable-kvm -cpu host)
+console="$home/boot.log"
+setsid "$qemu" "${accel[@]}" -m 2048 -smp 2 -nographic -no-reboot -nic none \
+    -cdrom "$home/tiny.iso" -boot d > "$console" 2>&1 < /dev/null &
+pid=$!
+for _ in $(seq 150); do
+    tr -d '\r' < "$console" | grep -aq "Please press Enter to activate this console" && break
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 2
+done
+kill -- "-$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
+tr -d '\r' < "$console" | grep -aq "Linux version 6.12.112-virt" || { tail -30 "$console"; fail "not the virt kernel"; }
+tr -d '\r' < "$console" | grep -aq "Please press Enter to activate this console" || { tail -30 "$console"; fail "did not reach its init"; }
+echo "PASS: nano, tiny, tiny-musl, core made and entered; core builds C++23, and mcpp builds with its gcc; desktop runs dsh in its root; tiny's ISO boots the virt kernel to its init"

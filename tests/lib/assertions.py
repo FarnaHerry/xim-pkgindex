@@ -44,7 +44,7 @@ def assert_valid_type(meta: XpkgMeta):
     """type 必须是已知值"""
     if meta.is_ref:
         return
-    valid = {"package", "script", "config", "template", "bugfix"}
+    valid = {"package", "script", "config", "template", "bugfix", "subos", "subos-policy"}
     assert meta.pkg_type in valid, f"未知 type: {meta.pkg_type}, 应为 {valid}"
 
 
@@ -123,13 +123,14 @@ def assert_config_registers_package_name(meta: XpkgMeta):
     豁免条件:
     - ref 包 (无 config hook)
     - 有自定义 installed() hook 的包
-    - type 为 script/config/bugfix/template 的包
+    - type 为 script/config/bugfix/template/subos 的包（subos 类型由 xlings 的默认
+      config 注册为 subos-base；自己写 config 反而会跳过它）
     """
     if meta.is_ref:
         return
     if meta.has_installed:
         return
-    if meta.pkg_type in ("script", "config", "bugfix", "template"):
+    if meta.pkg_type in ("script", "config", "bugfix", "template", "subos", "subos-policy"):
         return
     if not meta.has_config:
         pytest.fail(
@@ -138,6 +139,11 @@ def assert_config_registers_package_name(meta: XpkgMeta):
         )
 
     content = meta.raw_content
+
+    # 策略 0: config 交给 libs/luban_component.lua，它注册 package.name
+    # (pkginfo.name()) 及其程序与文件
+    if re.search(r'\bluban_component\.config\s*\(', content):
+        return
 
     # 无任何 xvm.add 调用 — 必定未注册
     if not _has_xvm_add_calls(content):

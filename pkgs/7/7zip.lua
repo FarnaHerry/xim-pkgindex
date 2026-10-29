@@ -42,9 +42,31 @@ package = {
     -- Linux/macOS upstream ships only the `7zz` CLI binary; there is no
     -- shared library asset on those platforms (no `lib7zip.so`/`.dylib` in
     -- the archives below), so this is a Windows-only distinction.
+    extensions = {
+        autoupdate = {
+            source = "https://github.com/ip7z/7zip/releases",
+            resources = {
+                GLOBAL = {
+                    url = {
+                        linux = {
+                            aarch64 = "https://github.com/ip7z/7zip/releases/download/${version}/7z${version:compact}-linux-arm64.tar.xz",
+                            x86_64 = "https://github.com/ip7z/7zip/releases/download/${version}/7z${version:compact}-linux-x64.tar.xz",
+                        },
+                        macosx = "https://github.com/ip7z/7zip/releases/download/${version}/7z${version:compact}-mac.tar.xz",
+                        windows = {
+                            aarch64 = "https://github.com/ip7z/7zip/releases/download/${version}/7z${version:compact}-arm64.exe",
+                            x86_64 = "https://github.com/ip7z/7zip/releases/download/${version}/7z${version:compact}-x64.exe",
+                        },
+                    },
+                    required = true,
+                },
+            },
+        },
+    },
+
     xpm = {
         linux = {
-            ["latest"] = { ref = "26.02" },
+            ["latest"] = { ref = "26.05" },
             ["26.02"] = {
                 x86_64 = {
                     url = "https://github.com/ip7z/7zip/releases/download/26.02/7z2602-linux-x64.tar.xz",
@@ -55,17 +77,31 @@ package = {
                     sha256 = "70ea6cc737ae1495ea2d7eb20ef3120fe579bd3f1a83a9d2362b62ec5bde2bba",
                 },
             },
+            ["26.05"] = {
+                aarch64 = {
+                    url = "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-linux-arm64.tar.xz",
+                    sha256 = "0b71f6cfc34669b3bf69f2347efd3429f77020665003a13b9cdc53b784270421",
+                },
+                x86_64 = {
+                    url = "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-linux-x64.tar.xz",
+                    sha256 = "22cf82fcc6eb7474f1d5bb4f02c0f8ebd573a718089d6833dc30f8350a3b232e",
+                },
+            },
         },
         macosx = {
-            ["latest"] = { ref = "26.02" },
+            ["latest"] = { ref = "26.05" },
             ["26.02"] = {
                 -- universal binary serves both x86_64 and aarch64
                 url = "https://github.com/ip7z/7zip/releases/download/26.02/7z2602-mac.tar.xz",
                 sha256 = "1cf6760579502f87e591ff5c73a005ec50b3e4d6f507e8b038382d563c3175b9",
             },
+            ["26.05"] = {
+                url = "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-mac.tar.xz",
+                sha256 = "12ef6830317743cfd3f0ab1724bde43fcc270d8b6d8564f8c12c2a2b7f993570",
+            },
         },
         windows = {
-            ["latest"] = { ref = "26.02" },
+            ["latest"] = { ref = "26.05" },
             ["26.02"] = {
                 x86_64 = {
                     url = "https://github.com/ip7z/7zip/releases/download/26.02/7z2602-x64.exe",
@@ -74,6 +110,16 @@ package = {
                 aarch64 = {
                     url = "https://github.com/ip7z/7zip/releases/download/26.02/7z2602-arm64.exe",
                     sha256 = "7c6fde79ed5e11b81c7bb6573b7962d3b6322aa5fce69c33ed19f672b55173ab",
+                },
+            },
+            ["26.05"] = {
+                aarch64 = {
+                    url = "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-arm64.exe",
+                    sha256 = "86d5790d5dd84cab4636c3bb7fab10d3ed7cd3e57e6119401bd2769e28165268",
+                },
+                x86_64 = {
+                    url = "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-x64.exe",
+                    sha256 = "fd99e86f57d8f429ef5ed045bf98315af962e2309b0f1ba87a147a44c71647d0",
                 },
             },
         },
@@ -96,6 +142,7 @@ function install()
         -- for a GUI-subsystem process — the hook would check for 7z.exe before
         -- the SFX finished. `Start-Process -Wait` fixes both.
         fs.mkdir_p(install_dir)
+        -- exec-quoting-ok: both values are inside PowerShell's single-quoted arguments
         os.exec(string.format([[
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%s' -ArgumentList '/S','/D=%s' -Wait | Out-Null"]], archive, install_dir))
         return os.isfile(path.join(install_dir, "7z.exe"))

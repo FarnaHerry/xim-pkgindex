@@ -1,3 +1,20 @@
+-- Linux ARM64 metadata requires xlings 2026.10.8.1 or newer, whose
+-- catalog loader exposes the process architecture; resolved runtime exports
+-- are carried into hooks through their execution context.
+-- Older x86_64 clients retain their existing layout.
+local recipe_arch = (os.arch and os.arch())
+if recipe_arch ~= "aarch64" and recipe_arch ~= "arm64" and recipe_arch ~= "x86_64" then
+    recipe_arch = (type(is_arch) == "function" and is_arch("aarch64")) and "aarch64" or "x86_64"
+end
+local runtime_metadata = {
+    x86_64 = { loader = "lib64/ld-linux-x86-64.so.2",
+               abi = "linux-x86_64-glibc", libdirs = { "lib64" } },
+    aarch64 = { loader = "lib64/ld-linux-aarch64.so.1",
+               abi = "linux-aarch64-glibc", libdirs = { "lib64" } },
+}
+local runtime_export = runtime_metadata[recipe_arch == "arm64" and "aarch64" or recipe_arch]
+    or runtime_metadata.x86_64
+
 package = {
     spec = "1",
 
@@ -13,7 +30,7 @@ package = {
 
     -- xim pkg info
     type = "package",
-    archs = {"x86_64"},
+    archs = {"x86_64", "aarch64"},
     status = "stable", -- dev, stable, deprecated
     categories = {"libc", "gnu"},
     keywords = {"libc", "gnu"},
@@ -60,11 +77,7 @@ package = {
             -- jdk-temurin, where it is the difference between a working AWT and
             -- UnsatisfiedLinkError; see that recipe.
             exports = {
-                runtime = {
-                    loader = "lib64/ld-linux-x86-64.so.2",
-                    abi    = "linux-x86_64-glibc",
-                    -- libdirs not declared → falls back to {lib64, lib} convention
-                },
+                runtime = runtime_export,
             },
             -- `latest` is 2.44 (as 2.44.2 — same upstream release, our
             -- revision 1; see that entry) — and from now on it TRACKS the
@@ -95,20 +108,34 @@ package = {
             -- install_state.cppm) answers from the payload directory and the
             -- ledger; no caller consults the remote sha256. A machine holding
             -- `xim-x-glibc/2.44` never downloads that url again whatever is
-            -- behind it, so overwriting an asset reaches exactly the audience
-            -- a new version reaches -- and adds a failure the new version
-            -- does not: a client whose cached index still carries the old
-            -- hash pulls the new bytes and fails the integrity check.
-            -- Whoever is already on a bad payload needs
-            -- `xlings install glibc@<new>`; that is a release note, not a
-            -- version-numbering decision.
+            -- behind it, so overwriting an asset reaches nobody who already
+            -- has the payload -- and adds a failure of its own: a client whose
+            -- cached index still carries the old hash pulls the new bytes and
+            -- fails the integrity check.
+            --
+            -- What does reach them is `revision` on the version entry
+            -- (docs/V2/xpackage-spec.md): a client that implements it records
+            -- the revision it installed and reinstalls, stating why, when the
+            -- recipe's differs. The rebuilt payload goes under a NEW asset
+            -- name with its own sha256, the old asset stays published as it
+            -- is, and the version key does not move. A client that predates
+            -- revision installs the new asset on a fresh install and keeps
+            -- the payload it already has.
             --
             -- Backward compatibility is what makes the move safe in the other
             -- direction: glibc runs older binaries on newer libc, never the
             -- reverse, so every 2.39-built payload in the index runs
             -- unchanged under 2.44.
             ["latest"] = { ref = "2.44.3" },
-            ["2.39"] = "XLINGS_RES",
+            ["2.39"] = {
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/glibc/releases/download/2.39/glibc-2.39-linux-x86_64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/glibc/releases/download/2.39/glibc-2.39-linux-x86_64.tar.gz",
+                    },
+                    sha256 = "d5d476e099bd048d0b0d74adce1d86da00dcc79d67325040ef92e52f8408557f",
+                },
+            },
             -- Built from source, not XLINGS_RES: the sha256 is checked, which
             -- an XLINGS_RES entry cannot do. Build recipe and the reason its
             -- prefix looks the way it does:
@@ -126,13 +153,19 @@ package = {
             -- published sha256 is a promise to whoever already read it: a
             -- client holding a cached index still has THIS hash, and swapping
             -- the bytes behind the same version breaks the one party that did
-            -- nothing wrong. Entries here are append-only for that reason.
+            -- nothing wrong. So a published url and its sha256 are immutable:
+            -- no entry is removed, and no asset is replaced. What an entry
+            -- installs changes only by a higher `revision`, which points the
+            -- entry at a NEW asset under the same version key (2.44.3 below)
+            -- and leaves the old asset published for cached indexes.
             ["2.44"] = {
-                url = {
-                    GLOBAL = "https://github.com/xlings-res/glibc/releases/download/2.44/glibc-2.44-linux-x86_64.tar.gz",
-                    CN     = "https://gitcode.com/xlings-res/glibc/releases/download/2.44/glibc-2.44-linux-x86_64.tar.gz",
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/glibc/releases/download/2.44/glibc-2.44-linux-x86_64.tar.gz",
+                        CN     = "https://gitcode.com/xlings-res/glibc/releases/download/2.44/glibc-2.44-linux-x86_64.tar.gz",
+                    },
+                    sha256 = "0105292fd6b49f74fbf51f93af973b78a9fc18225cb1c757c720e90de3120182",
                 },
-                sha256 = "0105292fd6b49f74fbf51f93af973b78a9fc18225cb1c757c720e90de3120182",
             },
             -- 2.44.2 IS BACK, AND IT IS `latest`.
             --
@@ -185,11 +218,13 @@ package = {
             -- keep resolving, and on 2026.8.27.5 the declaration outranks
             -- `latest`, so they are not dragged forward.
             ["2.44.2"] = {
-                url = {
-                    GLOBAL = "https://github.com/xlings-res/glibc/releases/download/2.44.2/glibc-2.44.2-linux-x86_64.tar.gz",
-                    CN     = "https://gitcode.com/xlings-res/glibc/releases/download/2.44.2/glibc-2.44.2-linux-x86_64.tar.gz",
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/glibc/releases/download/2.44.2/glibc-2.44.2-linux-x86_64.tar.gz",
+                        CN     = "https://gitcode.com/xlings-res/glibc/releases/download/2.44.2/glibc-2.44.2-linux-x86_64.tar.gz",
+                    },
+                    sha256 = "ed4bf048b8ed2b65433e0dd655f93133da4a9bd458276cfa986b7cccde835d08",
                 },
-                sha256 = "ed4bf048b8ed2b65433e0dd655f93133da4a9bd458276cfa986b7cccde835d08",
             },
             -- 2.44.3: THE LOADER'S OWN DIRECTORY IS ITS DEFAULT DIRECTORY.
             --
@@ -215,16 +250,76 @@ package = {
             -- Moving `latest` with it for the reason given at 2.44.2. Existing
             -- subos and already-patched payloads keep the glibc they were bound
             -- to; new subos and new installs get this one.
+            --
+            -- REVISION 1: THE PAYLOAD REACHES ITS OWN LOCALE AND GCONV DATA
+            -- (openxlings/xlings#621).
+            --
+            -- Revision 0 compiled every data path of libc under the dead
+            -- reserved prefix, so nothing in lib/locale, lib/gconv,
+            -- share/locale or share/zoneinfo could be found, and it shipped no
+            -- compiled locale at all. Measured under LANG=C.UTF-8:
+            -- setlocale(LC_ALL, "C.UTF-8") returned NULL, and
+            -- iconv_open("GBK", "UTF-8") failed beside 255 gconv modules.
+            --
+            -- Revision 1 is the same upstream 2.44 and the same two patches,
+            -- configured with that prefix padded to 255 bytes, so install()
+            -- can write the install directory over it inside the binaries
+            -- (__relocate) and then compile C.utf8 with the payload's own
+            -- localedef (__generate_c_utf8). The top-level directory of the
+            -- archive is now its own stem, so the payload root is found
+            -- without a directory search.
+            --
+            -- Same version key, new asset. Revision 0 --
+            -- releases/download/2.44.3/glibc-2.44.3-linux-x86_64.tar.gz,
+            -- sha256 b84de544a8c8b3e1e7a1103c829b393a37bc865f6720e391ec05f8ef69672845
+            -- -- stays published unchanged, so a client with a cached index
+            -- still gets the bytes its hash names. A fresh install gets
+            -- revision 1 on every client, because the recipe does the
+            -- relocation itself; a machine that already holds 2.44.3 gets it
+            -- only from a client that implements revision, which reinstalls
+            -- the payload and says why.
+            -- Revision 2 selects cache/preload from the logical loader root.
+            -- Revision 3 retains that boundary and ships managed timezone,
+            -- C.utf8, conversion data, licenses and native build provenance.
+            -- Each immutable resource is checked on its native architecture.
+            -- Revision 4 is revision 3 with every hard-link entry replaced by
+            -- the file it names (256 per architecture: zoneinfo aliases and
+            -- getconf), by .agents/tools/dereference-hard-links.py; no file
+            -- content changed but PROVENANCE.txt, which records the
+            -- derivation. Android's app sandbox refuses link(2), so xlings up
+            -- to 2026.10.10.1 failed on revision 3 there with
+            -- "write_header(.../getconf/POSIX_V6_LP64_OFF64): Can't create"
+            -- (mcpp-community/mcpp, Termux). The revision 3 assets stay
+            -- published unchanged.
             ["2.44.3"] = {
-                url = {
-                    GLOBAL = "https://github.com/xlings-res/glibc/releases/download/2.44.3/glibc-2.44.3-linux-x86_64.tar.gz",
-                    CN     = "https://gitcode.com/xlings-res/glibc/releases/download/2.44.3/glibc-2.44.3-linux-x86_64.tar.gz",
+                revision = 4,
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/glibc/releases/download/2.44.3-r4/glibc-2.44.3-r4-linux-x86_64.tar.gz",
+                        CN     = "https://gitcode.com/xlings-res/glibc/releases/download/2.44.3-r4/glibc-2.44.3-r4-linux-x86_64.tar.gz",
+                    },
+                    sha256 = "7ada8e9c05addbbc67fae964eafa608eace82fc4f13a8900c7249ad0205fad86",
                 },
-                sha256 = "b84de544a8c8b3e1e7a1103c829b393a37bc865f6720e391ec05f8ef69672845",
+                aarch64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/glibc/releases/download/2.44.3-r4/glibc-2.44.3-r4-linux-aarch64.tar.gz",
+                        CN     = "https://gitcode.com/xlings-res/glibc/releases/download/2.44.3-r4/glibc-2.44.3-r4-linux-aarch64.tar.gz",
+                    },
+                    sha256 = "bd480264223d887de03fefeda34d0ee75566cb4bf4042e481818251fb463bfce",
+                },
             },
         },
     },
 }
+
+
+-- Older resources were published only for x86_64. Preserve them for that
+-- architecture; an ARM reader must refuse them rather than install x86 bytes.
+if recipe_arch == "aarch64" or recipe_arch == "arm64" then
+    package.xpm.linux["2.39"] = nil
+    package.xpm.linux["2.44"] = nil
+    package.xpm.linux["2.44.2"] = nil
+end
 
 import("xim.libxpkg.log")
 import("xim.libxpkg.pkginfo")
@@ -232,11 +327,39 @@ import("xim.libxpkg.system")
 import("xim.libxpkg.xvm")
 import("xim.libxpkg.elfpatch")
 import("xim.pkgindex.sysroot")
+import("xim.pkgindex.shell")
+
+-- The prefix libc is configured with (.agents/tools/graphics/build-glibc.sh).
+-- RESERVED_PREFIX is AD-11's dead path; payloads up to 2.44.3 revision 0 carry
+-- it as it is. From 2.44.3 revision 1 on it is padded with one path component
+-- to 255 bytes, so that the install directory fits in its place inside the
+-- binaries. The build script spells the same string; __relocate finds out
+-- which one a payload carries by reading it.
+local RESERVED_PREFIX = "/nonexistent/xlings-use-rpath-not-default-search"
+local PADDING_HEAD = RESERVED_PREFIX .. "/padding-to-255-bytes-for-install-time-relocation"
+local PADDED_PREFIX = PADDING_HEAD .. string.rep("_", 255 - #PADDING_HEAD)
+
+-- Hook paths follow the payload; they do not depend on the client's optional
+-- architecture API. Its content first: a scope configuring a payload that is
+-- already installed downloaded nothing, so the file name is not this
+-- payload's -- an aarch64 home's second root registered x86_64's loader and
+-- was refused ("same-owner registration omits an existing member").
+local function runtime_layout()
+    local dir = pkginfo.install_dir()
+    for _, loader in ipairs({"ld-linux-aarch64.so.1", "ld-linux-x86-64.so.2"}) do
+        if os.isfile(path.join(dir, "lib64", loader)) then return "lib64", loader end
+    end
+    local file = pkginfo.install_file()
+    if file:find("linux-aarch64", 1, true) then
+        return "lib64", "ld-linux-aarch64.so.1"
+    end
+    return "lib64", "ld-linux-x86-64.so.2"
+end
 
 -- libnss modules
 local glibc_libs = {
     "crt1.o", "crti.o", "crtn.o", -- crt
-    "ld-linux-x86-64.so.2", -- dynamic linker/loader
+    -- The architecture-specific loader is registered in config().
     "libc.a", "libc.so", "libc.so.6", "libc_nonshared.a", -- C library
     "libdl.a", "libdl.so.2", -- dynamic loading
     -- `libm-<version>.a` is version-named and is added in config() rather than
@@ -271,6 +394,21 @@ local glibc_libs = {
 }
 
 function install()
+    -- Hook executors reload recipes without the catalog LoaderContext.
+    -- Their top-level os.arch() is unbound even in a current client. Check
+    -- the catalog's resolved exports, passed into the hook at invocation,
+    -- rather than that executor's fallback metadata.
+    if pkginfo.install_file():find("linux-aarch64", 1, true) then
+        local exports = _RUNTIME and _RUNTIME.self_exports
+        local expected_loader = path.join(pkginfo.install_dir(),
+            "lib64", "ld-linux-aarch64.so.1")
+        if not exports or exports.abi ~= "linux-aarch64-glibc"
+           or exports.loader ~= expected_loader then
+            log.error("glibc aarch64 requires xlings >= 2026.10.8.1; "
+                .. "the catalog must resolve the aarch64 runtime loader and ABI")
+            return false
+        end
+    end
 
     -- The payload root, without assuming what the tarball called it.
     --
@@ -316,7 +454,16 @@ function install()
     os.mv(glibcdir, pkginfo.install_dir())
 
     log.info("Relocating glibc files(path) ...")
-    __relocate()
+    if __relocate() then
+        __generate_c_utf8()
+    else
+        -- A payload configured before the padded prefix: its binaries name a
+        -- 48-byte prefix that no install path fits in, so libc cannot be
+        -- pointed at this directory and a compiled locale would never be read.
+        log.info("this glibc payload predates install-time relocation: its "
+                 .. "locale, gconv and zoneinfo paths stay unreachable "
+                 .. "(openxlings/xlings#621); 2.44.3 revision 1 has them")
+    end
 
     __check_nss_coverage()
 
@@ -329,7 +476,13 @@ function config()
     local glibc_root_binding = "glibc@" .. pkginfo.version()
     local glibc_version = __version_key()
     local glibc_bindir = path.join(pkginfo.install_dir(), "bin")
-    local glibc_libdir = path.join(pkginfo.install_dir(), "lib64")
+    local libname, loader_name = runtime_layout()
+    local glibc_libdir = path.join(pkginfo.install_dir(), libname)
+
+    xvm.add(loader_name, {
+        type = "lib", version = glibc_version, bindir = glibc_libdir,
+        filename = loader_name, alias = loader_name, binding = glibc_root_binding,
+    })
 
     log.debug("1 - config glibc tool...")
     local bin_config = {
@@ -379,6 +532,8 @@ end
 
 function uninstall()
     local glibc_version = __version_key()
+    local _, loader_name = runtime_layout()
+    xvm.remove(loader_name, glibc_version)
     for _, lib in ipairs(glibc_libs) do
         xvm.remove(lib, glibc_version)
     end
@@ -425,7 +580,8 @@ function __check_nss_coverage()
         return
     end
 
-    local libdir = path.join(pkginfo.install_dir(), "lib64")
+    local libname = runtime_layout()
+    local libdir = path.join(pkginfo.install_dir(), libname)
     local seen, missing = {}, {}
     for line in content:gmatch("[^\r\n]+") do
         -- Comments off first, then the `db: mod [STATUS=action] mod` shape.
@@ -559,24 +715,42 @@ end
 -- enumerate the payload, anchor on a whole absolute path token, and assert
 -- afterwards that no build path survived and every rewritten script still
 -- parses.
+--
+-- That covers TEXT files only, by design. The paths libc uses to find its own
+-- data are C strings inside ELF files, and __relocate_binaries below rewrites
+-- those. Returns true when the payload carried the padded prefix, i.e. when
+-- libc now points at this directory.
 function __relocate()
-    -- TWO markers, because the build pipeline changed and the tarballs did not
-    -- change with it.
+    -- THREE markers, because the build pipeline changed twice and the tarballs
+    -- did not change with it.
     --
     -- Releases up to and including 2.44 were configured with the build
     -- machine's own path -- `/home/xlings/.xlings_data/.../fromsource-x-glibc/
     -- <ver>` -- which leaked the builder's disk layout into every artifact.
-    -- AD-11 replaced it with an explicitly reserved placeholder
+    -- AD-11 replaced it with an explicitly reserved placeholder, and 2.44.3
+    -- revision 1 padded that placeholder to 255 bytes
     -- (.agents/tools/graphics/build-glibc.sh).
     --
-    -- Both have to be handled here, and for a while both will be: an already
-    -- published tarball still carries the old one, and the next build will
-    -- carry the new one. Dropping the old marker the day the pipeline changes
-    -- would leave every existing release unrelocated, with nothing to say so.
+    -- All three have to be handled here, and for a while all three will be:
+    -- an already published tarball keeps the marker it was built with.
+    -- Dropping an old marker the day the pipeline changes would leave every
+    -- existing release unrelocated, with nothing to say so.
+    --
+    -- ORDER MATTERS between the first two. RESERVED_PREFIX is the leading part
+    -- of PADDED_PREFIX, so rewriting it first would turn `<padded>/lib` into
+    -- `<install>/padding-to-255-bytes-.../lib`, a path that does not exist and
+    -- that no later marker matches.
     local markers = {
+        PADDED_PREFIX,
+        RESERVED_PREFIX,
         "fromsource-x-" .. package.name .. "/" .. pkginfo.version(),
-        "/nonexistent/xlings-use-rpath-not-default-search",
     }
+
+    -- Binaries first, and by the recipe itself, so the relocation does not
+    -- depend on the client: every client that installs revision 1 gets a libc
+    -- that finds its locale and gconv data.
+    local dir = pkginfo.install_dir()
+    local relocatable = __relocate_binaries(dir, PADDED_PREFIX) > 0
 
     -- type(), not truthiness: an unknown field on a module proxy is truthy on
     -- every client, so `if elfpatch.relocate_build_paths then` would be true
@@ -589,7 +763,9 @@ function __relocate()
         for _, marker in ipairs(markers) do
             elfpatch.relocate_build_paths{ marker = marker }
         end
-        return
+        __quote_linker_script_paths(dir)
+        if relocatable then __assert_no_reserved_prefix(dir, true) end
+        return relocatable
     end
 
     -- Older client. Do the ONE substitution that is both needed and safe here,
@@ -630,4 +806,324 @@ function __relocate()
              .. "bin/xtrace and bin/sotruss keep the build machine's paths. "
              .. "Run `xlings self update` and reinstall glibc to fix them.",
              rewritten)
+
+    -- The text files are this client's gap and are reported above; the
+    -- binaries are this recipe's own work, and are asserted all the same.
+    if relocatable then __assert_no_reserved_prefix(dir, false) end
+    return relocatable
+end
+
+-- ── binary relocation ─────────────────────────────────────────────────
+--
+-- libc finds its own data through paths compiled in as C strings: lib/locale
+-- (and its locale-archive), lib/gconv (and gconv-modules.cache), share/locale,
+-- share/zoneinfo, etc/localtime, libexec/getconf; the loader names its
+-- ld.so.cache, ld.so.preload and default directory the same way. A text
+-- rewrite cannot change them, because a string that changes length moves
+-- every offset behind it.
+--
+-- So each occurrence of the 255-byte placeholder is overwritten in place by
+-- the install directory followed by `/` up to 255 bytes:
+-- `<install>//////lib/locale` names the same directory as
+-- `<install>/lib/locale`. Nothing changes length -- not the file, not any
+-- string in it (a search list holding the placeholder several times included),
+-- and not the lengths glibc compiled in beside its strings. That last part is
+-- why the padding is `/` and not NUL, conda's choice: sizeof, a strlen the
+-- compiler folded on the constant, and ld.so's table of directory lengths all
+-- keep the build-time length, and after NUL padding they read past the end of
+-- the path. Measured with NUL padding: each setlocale opened ~2200 paths in
+-- the host's root directory (the padding read as empty locale directories),
+-- sysconf reported two 32-bit programming environments as supported, and
+-- `locale -a` and localedef misread their own directories.
+--
+-- The placeholder must be at least as long as the install directory, which is
+-- what the padding to 255 bytes is for; a longer install directory is refused
+-- by name rather than truncated.
+--
+-- The loader's ld.so.cache and ld.so.preload then name <install>/etc: paths
+-- inside this payload, which ships neither, instead of dead ones. The host's
+-- /etc is still never read, and XLINGS_LD_PRELOAD_FILE still overrides the
+-- preload path.
+--
+-- Here and not in libxpkg, whose relocate_build_paths is text-only by design:
+-- glibc is the one payload that needs it. It becomes a libxpkg helper when a
+-- second package does.
+
+-- Characters that end a path token -- the set relocate_build_paths uses, NUL
+-- included, because in a binary a C string starts after one.
+local PATH_DELIMS = {
+    ["\0"] = true, [" "] = true, ["\t"] = true, ["\n"] = true, ["\r"] = true,
+    ['"'] = true, ["'"] = true, ["`"] = true, ["("] = true, [")"] = true,
+    ["{"] = true, ["}"] = true, ["["] = true, ["]"] = true, ["="] = true,
+    [","] = true, [";"] = true, [":"] = true, ["<"] = true, [">"] = true,
+    ["|"] = true, ["&"] = true, ["*"] = true,
+}
+
+function __sh_quote(s)
+    return shell.quote(s)
+end
+
+-- Every regular file of the payload. Symlinks are not followed and not
+-- listed: rewriting through one would write outside the payload, and the
+-- file it names is listed on its own.
+function __payload_files(dir)
+    local files = {}
+    local f = io.popen("find " .. __sh_quote(dir) .. " -type f 2>/dev/null")
+    if not f then raise("cannot enumerate the files of " .. dir) end
+    for line in f:lines() do files[#files + 1] = line end
+    f:close()
+    return files
+end
+
+function __read_file(file)
+    local f = io.open(file, "rb")
+    if not f then return nil end
+    local content = f:read("*a")
+    f:close()
+    return content
+end
+
+-- The test libxpkg's relocate_build_paths uses: a NUL in the first 8 KiB.
+function __is_binary(content)
+    return content:sub(1, 8192):find("\0", 1, true) ~= nil
+end
+
+-- `content` with every occurrence of `from` replaced by `to`, which must have
+-- the same length. Returns the new content and the number of occurrences.
+function __replace_same_length(content, from, to)
+    if #to ~= #from then
+        error(string.format("replacement is %d bytes, the placeholder %d", #to, #from))
+    end
+    local out, pos, count = {}, 1, 0
+    while true do
+        local s, e = content:find(from, pos, true)
+        if not s then break end
+        out[#out + 1] = content:sub(pos, s - 1)
+        out[#out + 1] = to
+        pos = e + 1
+        count = count + 1
+    end
+    out[#out + 1] = content:sub(pos)
+    return table.concat(out), count
+end
+
+-- Replace `file` with `content` through a temporary file in the same
+-- directory and a rename: a process running the old file keeps its inode,
+-- and an interrupted write leaves the original in place. The temporary file
+-- is a copy given the original's mode -- executable or not, the payload's
+-- only two -- and opening it for writing truncates it without changing that
+-- mode. Not `cp -p`: preserving more than the mode (its ACL, its owner)
+-- fails with EINVAL in a user namespace that does not map them, as a
+-- system's store in a prefix domain is.
+function __replace_file(file, content)
+    local tmp = file .. ".xlings-relocate"
+    os.remove(tmp)
+    local q, qt = __sh_quote(file), __sh_quote(tmp)
+    local ok = os.execute("cp " .. q .. " " .. qt .. " && { if [ -x " .. q .. " ]; then chmod 755 " .. qt
+        .. "; else chmod 644 " .. qt .. "; fi; }")
+    if ok ~= true and ok ~= 0 then
+        os.remove(tmp)
+        raise("cannot copy " .. file .. " for relocation")
+    end
+    local f = io.open(tmp, "wb")
+    local written = f and f:write(content)
+    local closed = f and f:close()
+    if not (written and closed) then
+        os.remove(tmp)
+        raise("cannot write the relocated copy of " .. file)
+    end
+    local renamed, err = os.rename(tmp, file)
+    if not renamed then
+        os.remove(tmp)
+        raise("cannot replace " .. file .. ": " .. tostring(err))
+    end
+end
+
+-- The linker scripts name this directory once relocation has run:
+-- `GROUP ( <dir>/lib/libc.so.6 … )`. GNU ld and lld split an unquoted name at
+-- whitespace, so under a home whose path holds a space (`/tmp/mc probe/home`)
+-- a link opened `/tmp/mc` and failed (mcpp-community/mcpp#832). Both read a
+-- name in double quotes as one name. A directory without whitespace, and a
+-- script already quoted, are left as they are. Returns the number of scripts
+-- rewritten.
+function __quote_linker_script_paths(dir)
+    if not dir:find("%s") then return 0 end
+    local name = dir:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0") .. "/[^%s()\"]+"
+    local rewritten = 0
+    for _, f in ipairs({ "lib/libc.so", "lib/libm.so", "lib/libm.a" }) do
+        local file = dir .. "/" .. f
+        local content = __read_file(file)
+        if content and content:sub(1, 16) == "/* GNU ld script"
+                and not content:find('"' .. dir, 1, true) then
+            local quoted, count = content:gsub(name, '"%0"')
+            if count > 0 then
+                __replace_file(file, quoted)
+                rewritten = rewritten + 1
+            end
+        end
+    end
+    return rewritten
+end
+
+-- Overwrite `placeholder` with `dir`, `/`-padded to the same length, in every
+-- binary file of the payload that holds it. Returns the number of files
+-- rewritten; 0 means the payload predates the padded prefix, which is not an
+-- error.
+function __relocate_binaries(dir, placeholder)
+    local to = dir:gsub("/+$", "")
+    -- Absolute, and not the root: padding "" with `/` would name the host's
+    -- own /lib/locale, /lib/gconv and /etc.
+    if to:sub(1, 1) ~= "/" then
+        raise(string.format("cannot relocate glibc to '%s': not an absolute "
+                            .. "directory below /", dir))
+    end
+    local targets = {}
+    for _, file in ipairs(__payload_files(dir)) do
+        local content = __read_file(file)
+        if content and __is_binary(content) then
+            if content:find(placeholder, 1, true) then
+                targets[#targets + 1] = file
+            elseif content:find(PADDING_HEAD, 1, true) then
+                -- Padded, but not to the string spelled above: the build
+                -- script and this recipe disagree, and relocating by either
+                -- spelling would leave the other half behind.
+                raise(string.format(
+                    "%s carries a padded prefix other than the %d-byte one this "
+                    .. "recipe relocates; .agents/tools/graphics/build-glibc.sh and "
+                    .. "pkgs/g/glibc.lua must spell the same PREFIX", file, #placeholder))
+            end
+        end
+    end
+    if #targets == 0 then return 0 end
+
+    -- Checked before anything is written, so a refused install leaves the
+    -- payload as it was extracted.
+    if #to > #placeholder then
+        raise(string.format(
+            "glibc can be installed only under a directory of at most %d bytes: its "
+            .. "binaries hold the install directory in the space of a %d-byte "
+            .. "placeholder, and '%s' is %d bytes. Install it under a shorter home.",
+            #placeholder, #placeholder, to, #to))
+    end
+
+    local replacement = to .. string.rep("/", #placeholder - #to)
+    local occurrences = 0
+    for _, file in ipairs(targets) do
+        local content = __read_file(file)
+        local new, n = __replace_same_length(content, placeholder, replacement)
+        if #new ~= #content then
+            raise("relocation changed the size of " .. file .. "; not written")
+        end
+        __replace_file(file, new)
+        occurrences = occurrences + n
+    end
+    log.info("relocated %d occurrence(s) in %d binary file(s) -> %s",
+             occurrences, #targets, to)
+    return #targets
+end
+
+-- No file may still name the reserved prefix as an absolute path (R4). The
+-- padded prefix begins with it, so this also catches a padded occurrence left
+-- behind, and it catches what the padding exists to rule out: a path compiled
+-- in with the 48-byte prefix alone, which no install directory fits. Text
+-- files are included when the client relocated them.
+function __assert_no_reserved_prefix(dir, include_text)
+    local left = {}
+    for _, file in ipairs(__payload_files(dir)) do
+        local content = __read_file(file)
+        if content and (include_text or __is_binary(content)) then
+            local pos = 1
+            while true do
+                local s, e = content:find(RESERVED_PREFIX, pos, true)
+                if not s then break end
+                if s == 1 or PATH_DELIMS[content:sub(s - 1, s - 1)] then
+                    left[#left + 1] = file:sub(#dir + 2)
+                    break
+                end
+                pos = e + 1
+            end
+        end
+    end
+    if #left > 0 then
+        raise(string.format(
+            "%d file(s) still name %s after relocation, so this payload cannot "
+            .. "find its own data: %s",
+            #left, RESERVED_PREFIX, table.concat(left, ", ")))
+    end
+end
+
+-- Output and success of a command, stderr included.
+function __run(cmd)
+    local p = io.popen(cmd .. " 2>&1")
+    if not p then return "", false end
+    local out = p:read("*a") or ""
+    local ok = p:close()
+    return out, ok == true or ok == 0
+end
+
+-- ── the C.UTF-8 locale ─────────────────────────────────────────────────
+--
+-- The payload ships localedef and its sources (share/i18n) but no compiled
+-- locale, and C.UTF-8 is the one locale a program may reasonably expect of any
+-- glibc. It is compiled here, by the payload's own localedef running on the
+-- payload's own loader, from the payload's own sources -- never copied from
+-- the host, whose locale files belong to the host's glibc and whose format is
+-- not guaranteed to match this one. --no-archive writes a directory, which
+-- the relocated libc finds at lib/locale/C.utf8 without a locale-archive.
+--
+-- Then the result is asserted as behaviour, through the payload's own
+-- programs: `locale charmap` under LC_ALL=C.UTF-8 must say UTF-8 (setlocale
+-- succeeded), and iconv must convert UTF-8 to GBK through lib/gconv. The
+-- environment variables that would redirect either lookup are removed, so a
+-- pass means the relocated paths were used.
+function __generate_c_utf8()
+    local dir = pkginfo.install_dir()
+    local libname, loader_name = runtime_layout()
+    local libdir = path.join(dir, libname)
+    local localedir = path.join(dir, "lib", "locale")
+    local target = path.join(localedir, "C.utf8")
+    -- A payload program on the payload's loader, with `env` assignments first.
+    local function run(env, program, args)
+        return __run("env -u LD_PRELOAD -u LOCPATH -u GCONV_PATH " .. env .. " "
+            .. __sh_quote(path.join(libdir, loader_name))
+            .. " --library-path " .. __sh_quote(libdir) .. " "
+            .. __sh_quote(path.join(dir, "bin", program)) .. " " .. args)
+    end
+
+    os.tryrm(target)
+    os.mkdir(localedir)
+    -- localedef exits 1 when it wrote the locale with warnings, so the verdict
+    -- is the file it produced, not its status. The UTF-8 charmap is read from
+    -- share/i18n/charmaps, where the build ships it uncompressed as well, so
+    -- that localedef does not need a host gzip.
+    local out = run("I18NPATH=" .. __sh_quote(path.join(dir, "share", "i18n")),
+                    "localedef", "--no-archive -i C -f UTF-8 " .. __sh_quote(target))
+    if not os.isfile(path.join(target, "LC_CTYPE")) then
+        raise("the payload's localedef did not produce lib/locale/C.utf8:\n" .. out)
+    end
+
+    local charmap = run("LC_ALL=C.UTF-8", "locale", "charmap")
+    if charmap:gsub("%s+$", "") ~= "UTF-8" then
+        raise("lib/locale/C.utf8 was compiled but setlocale(LC_ALL, \"C.UTF-8\") "
+              .. "does not load it: `locale charmap` says " .. charmap)
+    end
+
+    -- U+4E2D is E4 B8 AD in UTF-8 and D6 D0 in GBK. The probe files live in
+    -- the payload directory, the one place this hook is sure it may write.
+    local input = path.join(dir, ".xlings-iconv-probe.in")
+    local output = path.join(dir, ".xlings-iconv-probe.out")
+    local f = io.open(input, "wb")
+    if f then f:write("\228\184\173"); f:close() end
+    local iconv_out = run("", "iconv", "-f UTF-8 -t GBK " .. __sh_quote(input)
+                                       .. " -o " .. __sh_quote(output))
+    local gbk = __read_file(output)
+    os.remove(input)
+    os.remove(output)
+    if gbk ~= "\214\208" then
+        raise("iconv from UTF-8 to GBK does not work through this payload's "
+              .. "lib/gconv: " .. iconv_out)
+    end
+
+    log.info("compiled lib/locale/C.utf8; setlocale(C.UTF-8) and UTF-8 -> GBK "
+             .. "work from this payload")
 end

@@ -11,7 +11,7 @@ package = {
     docs = "https://proot-me.github.io",
 
     type = "package",
-    archs = {"x86_64"},
+    archs = {"x86_64", "aarch64"},
     status = "stable",
     categories = {"sandbox", "container", "tool"},
     keywords = {"proot", "chroot", "sandbox", "userspace", "rootless"},
@@ -28,11 +28,46 @@ package = {
     -- XLINGS_RES sentinel resolves to:
     --   GLOBAL → github.com/xlings-res/proot/releases/download/<ver>/...
     --   CN     → gitcode.com/xlings-res/proot/releases/download/<ver>/...
+
+
+    extensions = {
+        autoupdate = {
+            source = "https://github.com/xlings-res/proot/releases",
+            resources = {
+                GLOBAL = {
+                    url = {
+                        linux = {
+                            x86_64 = "https://github.com/xlings-res/proot/releases/download/${version}/proot-${version}-linux-x86_64.tar.gz",
+                            aarch64 = "https://github.com/xlings-res/proot/releases/download/${version}/proot-${version}-linux-aarch64.tar.gz",
+                        },
+                    },
+                    required = true,
+                },
+                CN = {
+                    url = {
+                        linux = {
+                            x86_64 = "https://gitcode.com/xlings-res/proot/releases/download/${version}/proot-${version}-linux-x86_64.tar.gz",
+                            aarch64 = "https://gitcode.com/xlings-res/proot/releases/download/${version}/proot-${version}-linux-aarch64.tar.gz",
+                        },
+                    },
+                    required = true,
+                },
+            },
+            verify = "sha256-sidecar",
+        },
+    },
+
     xpm = {
         linux = {
-            url_template = "https://github.com/proot-me/proot/archive/v{version}/proot-{version}.tar.gz",
+
             ["latest"] = { ref = "5.4.0" },
-            ["5.4.0"] = "XLINGS_RES",
+            ["5.4.0"] = {
+                url = "XLINGS_RES",
+                sha256 = {
+                    x86_64 = "f9f4e866fa6ddb09039bed0ae679ab73da9c59086ced57ae132d838033d9f73e",
+                    aarch64 = "cd880965713e22c3d7534b32296a4e16ce68b091ebfc32434139dac187f209b9",
+                },
+            },
         },
     },
 }

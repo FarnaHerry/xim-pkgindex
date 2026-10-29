@@ -54,6 +54,12 @@ done
 [ -n "$VERSION" ]  || die "--version is required (e.g. 22.1.8)"
 [ -n "$PLATFORM" ] || die "--platform is required (linux|macosx|windows)"
 [ -n "$ARCH" ]     || die "--arch is required (x86_64|arm64)"
+case "$PLATFORM:$ARCH" in
+    linux:arm64) ARCH=aarch64 ;;
+    macosx:aarch64) ARCH=arm64 ;;
+    linux:x86_64|linux:aarch64|macosx:arm64|windows:x86_64) ;;
+    *) die "unsupported platform/architecture: $PLATFORM/$ARCH" ;;
+esac
 [ -e "$IN" ]       || die "input not found: $IN"
 case "$PKG" in llvm|core|libcxx|tools) ;; *) die "--pkg must be llvm|core|libcxx|tools";; esac
 
@@ -218,8 +224,22 @@ do_libcxx() {
         atomic_real=$(readlink -f "$(gcc -print-file-name=libatomic.so.1)" 2>/dev/null)
         [ -n "$atomic_real" ] && [ -e "$atomic_real" ] \
             || die "libatomic: 'gcc -print-file-name=libatomic.so.1' did not resolve to a real file"
+        expected_machine="Advanced Micro Devices X86-64"
+        [ "$ARCH" != aarch64 ] || expected_machine=AArch64
+        readelf -h "$atomic_real" | grep -q "Machine:.*$expected_machine" \
+            || die "libatomic architecture does not match $ARCH: $atomic_real"
         base=$(basename "$atomic_real")            # e.g. libatomic.so.1.2.0
         cp "$atomic_real" "$cxxdir/$base"
+        {
+            printf 'Library: %s\n' "$base"
+            printf 'Bootstrap compiler: %s\n' "$(gcc --version | head -1)"
+            printf 'Source library digest: '; sha256sum "$atomic_real"
+            printf 'License: GPL-3.0 with GCC Runtime Library Exception\n'
+            readelf -h "$atomic_real"
+        } > "$DEST/LIBATOMIC-PROVENANCE.txt"
+        if [ -f /usr/share/doc/libatomic1/copyright ]; then
+            cp /usr/share/doc/libatomic1/copyright "$DEST/LIBATOMIC-LICENSE.txt"
+        fi
         ln -sf "$base" "$cxxdir/libatomic.so.1"
         ln -sf libatomic.so.1 "$cxxdir/libatomic.so"
         atomic_a=$(gcc -print-file-name=libatomic.a 2>/dev/null)
@@ -297,6 +317,49 @@ PY
     fi
 fi
 
+# --- Linux shared libraries carry $ORIGIN RUNPATH ----------------------------
+# DT_RUNPATH is NOT transitive: it covers only the object's own direct NEEDED.
+# The payload's libc++.so.1 NEEDs libatomic.so.1 (and libc++abi, libunwind)
+# from the same per-triple lib dir, and nothing else reliably finds them: an
+# executable's RUNPATH does not cover another object's dependencies, xlings
+# rewrites the .so rpaths only at INSTALL time, and on the machine that built
+# the 22.1.8 asset the gap was masked by a system libatomic in the loader
+# cache — its gate passed there and failed on a clean host (import std died
+# with `libatomic.so.1: cannot open`). Measured 2026-10-07: upstream ships
+# these .so files with no RUNPATH at all, in 22.1.8 and 23.1.3 alike. $ORIGIN
+# on each .so is what makes the archive itself self-contained — the state the
+# self-containment red line in the llvm-subpackaging skill describes.
+if [ "$PLATFORM" = "linux" ]; then
+    command -v patchelf >/dev/null 2>&1 \
+        || die "patchelf not found: needed to set \$ORIGIN RUNPATH on the payload's shared libraries"
+    expected_machine="Advanced Micro Devices X86-64"
+    [ "$ARCH" != aarch64 ] || expected_machine=AArch64
+    while IFS= read -r -d '' elf; do
+        [ "$(head -c 4 "$elf")" = $'\x7fELF' ] || continue
+        readelf -h "$elf" | grep -q "Machine:.*$expected_machine" \
+            || die "foreign ELF in $ARCH payload: $elf"
+    done < <(find "$DEST" -type f -print0)
+    so_patched=0
+    while IFS= read -r -d '' so; do
+        # Not every `*.so` is an ELF: libc++.so ships as an ASCII linker
+        # script (`INPUT(libc++.so.1 ...)`), which patchelf rejects with
+        # "missing ELF header". Real ELF files start with the \x7fELF magic.
+        [ "$(head -c 4 "$so")" = $'\x7fELF' ] || continue
+        patchelf --set-rpath '$ORIGIN' "$so" || die "patchelf --set-rpath failed on $so"
+        so_patched=$((so_patched + 1))
+    done < <(find "$DEST/lib" -type f \( -name '*.so' -o -name '*.so.*' \) -print0)
+    log "  + \$ORIGIN RUNPATH on $so_patched shared libraries"
+    : > "$DEST/ELF-MANIFEST.txt"
+    while IFS= read -r -d '' elf; do
+        [ "$(head -c 4 "$elf")" = $'\x7fELF' ] || continue
+        {
+            printf '\nFile: %s\n' "${elf#"$DEST/"}"
+            sha256sum "$elf"
+            readelf -h -l -d -V "$elf"
+        } >> "$DEST/ELF-MANIFEST.txt"
+    done < <(find "$DEST" -type f -print0)
+fi
+
 # --- repack ----------------------------------------------------------------
 mkdir -p "$OUT"
 OUT="$(cd "$OUT" && pwd)"   # absolutize: the zip step cd's into $WORK
@@ -312,5 +375,6 @@ for FMT in $FORMATS; do
     esac
     SHA="$(sha256sum "$OUTFILE" | cut -d' ' -f1)"
     printf "  %-10s %8s  %s\n" "$FMT" "$(du -h "$OUTFILE" | cut -f1)" "$SHA"
+    echo "$SHA  $(basename "$OUTFILE")" > "$OUTFILE.sha256"
     echo "$SHA  $(basename "$OUTFILE")" >> "$OUT/SHA256SUMS.txt"
 done

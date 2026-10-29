@@ -1,0 +1,10 @@
+{
+  "requires": {
+    "xlings": {
+      "min": "2026.10.8.1"
+    }
+  },
+  "namespaces": {
+    "reserved": ["xim", "luban", "subos", "config"]
+  }
+}

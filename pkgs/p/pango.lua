@@ -12,6 +12,27 @@ package = {
     categories = {"graphics", "text", "library"},
     keywords = {"pango", "text", "layout", "lib"},
     xvm_enable = true,
+    extensions = {
+        autoupdate = {
+            source = "https://github.com/xlings-res/pango/releases",
+            resources = {
+                GLOBAL = {
+                    url = {
+                        linux = "https://github.com/xlings-res/pango/releases/download/${version}/pango-${version}-linux-x86_64.tar.gz",
+                    },
+                    required = true,
+                },
+                CN = {
+                    url = {
+                        linux = "https://gitcode.com/xlings-res/pango/releases/download/${version}/pango-${version}-linux-x86_64.tar.gz",
+                    },
+                    required = true,
+                },
+            },
+            verify = "sha256-sidecar",
+        },
+    },
+
     xpm = {
         linux = {
             -- fromsource 漏了 glib/fribidi, 这里补全(pango 运行时确需)
@@ -36,13 +57,23 @@ package = {
             --     (no pango library links X at all); it is a pkg-config-time
             --     requirement of the .pc upstream shipped, so the closure
             --     check will report it as declared-but-unused, correctly.
+            --   * glibc -- what switches on elfpatch for this payload: the
+            --     auto-patch fires only when a runtime dep exports a loader.
+            --     Without it libpango kept its shipped RUNPATH, so its own deps
+            --     resolved only when the loading program's search path happened
+            --     to name them (gtk3 loaded alone did not find them).
             deps = {
+                "xim:glibc",
                 "xim:glib@>=2.80", "xim:harfbuzz@>=8.3", "xim:fribidi@>=1.0.13",
                 "xim:cairo@>=1.18", "xim:freetype@>=2.13", "xim:fontconfig@>=2.15",
                 "xim:libthai@>=0.1.30", "xim:libXft@>=2.3.9",
             },
+            exports = { runtime = { libdirs = {"lib"} } },
             ["latest"] = { ref = "1.52.1" },
             ["1.52.1"] = {
+                -- 1: same asset; the payload is now elfpatched (glibc dep
+                -- above), which rewrites its ELF files -- so it reinstalls.
+                revision = 1,
                 url = {
                     GLOBAL = "https://github.com/xlings-res/pango/releases/download/1.52.1/pango-1.52.1-linux-x86_64.tar.gz",
                     CN     = "https://gitcode.com/xlings-res/pango/releases/download/1.52.1/pango-1.52.1-linux-x86_64.tar.gz",
@@ -91,13 +122,13 @@ function config()
     local sysroot = system.subos_sysrootdir()
     local sys_inc = path.join(sysroot, "usr/include")
     os.mkdir(sys_inc)
-    system.exec(string.format("sh -c 'cp -a %s/include/* %s/ 2>/dev/null || true'", idir, sys_inc))
+    system.exec(string.format("sh -c 'cp -a \"%s\"/include/* \"%s\"/ 2>/dev/null || true'", idir, sys_inc))
     local sys_pc = path.join(sysroot, "usr/lib/pkgconfig")
     os.mkdir(sys_pc)
     -- The payload's .pc files were already pointed at the payload in
     -- install(); copying them verbatim is what keeps that the only answer.
     system.exec(string.format(
-        "sh -c 'for pc in %s/lib/pkgconfig/*.pc; do [ -f \"$pc\" ] && cp -f \"$pc\" %s/; done'",
+        "sh -c 'for pc in \"%s\"/lib/pkgconfig/*.pc; do [ -f \"$pc\" ] && cp -f \"$pc\" \"%s\"/; done'",
         idir, sys_pc
     ))
     return true
@@ -108,7 +139,7 @@ function uninstall()
     for _, lib in ipairs(libs) do xvm.remove(lib) end
     local sysroot = system.subos_sysrootdir()
     system.exec(string.format(
-        "sh -c 'rm -rf %s/usr/include/pango-1.0; rm -f %s/usr/lib/pkgconfig/pango.pc %s/usr/lib/pkgconfig/pangocairo.pc %s/usr/lib/pkgconfig/pangoft2.pc'",
+        "sh -c 'rm -rf \"%s\"/usr/include/pango-1.0; rm -f \"%s\"/usr/lib/pkgconfig/pango.pc \"%s\"/usr/lib/pkgconfig/pangocairo.pc \"%s\"/usr/lib/pkgconfig/pangoft2.pc'",
         sysroot, sysroot, sysroot, sysroot
     ))
     return true

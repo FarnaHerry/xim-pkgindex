@@ -3,9 +3,9 @@
 -- Distribution: **npm only**. `deepseek-ai/deepseek-harness` publishes no
 -- GitHub release and carries no git tag; the one shipping channel is the
 -- npm package `@deepseek-ai/dsh`, and upstream's own instruction is
--- `npx @deepseek-ai/dsh web`. So this recipe goes through npm the same way
--- openclaw.lua does, rather than downloading a platform asset like
--- claude.lua / codex.lua — there is no asset to download.
+-- `npx @deepseek-ai/dsh web`. So this recipe installs from the npm registry
+-- (with pnpm, see install()) as openclaw.lua does, rather than downloading a
+-- platform asset like claude.lua / codex.lua — there is no asset to download.
 --
 -- No `package.ci`: version-check.py discovers versions from GitHub release
 -- tags (`github_releases()`), and this project has none. Bumps are read off
@@ -135,19 +135,31 @@ package = {
         linux = {
             deps = {"xim:node@>=24", "xim:pnpm"},
             ["latest"] = { ref = "0.1.0-rc.6" },
-            ["0.1.0-rc.6"] = {},
+            -- r1: installed with pnpm (npm 11 runs out of memory resolving
+            -- it); pty.node checked where node-pty loads it (its prebuilds).
+            -- r2: what a root accepts -- the shim in dsh's own payload, and
+            -- sharp's RPATH kept inside it.
+            ["0.1.0-rc.6"] = { revision = 2 },
             ["0.1.0-rc.3"] = {},
         },
         macosx = {
             deps = {"xim:node@>=24", "xim:pnpm"},
             ["latest"] = { ref = "0.1.0-rc.6" },
-            ["0.1.0-rc.6"] = {},
+            -- r1: installed with pnpm (npm 11 runs out of memory resolving
+            -- it); pty.node checked where node-pty loads it (its prebuilds).
+            -- r2: what a root accepts -- the shim in dsh's own payload, and
+            -- sharp's RPATH kept inside it.
+            ["0.1.0-rc.6"] = { revision = 2 },
             ["0.1.0-rc.3"] = {},
         },
         windows = {
             deps = {"xim:node@>=24", "xim:pnpm"},
             ["latest"] = { ref = "0.1.0-rc.6" },
-            ["0.1.0-rc.6"] = {},
+            -- r1: installed with pnpm (npm 11 runs out of memory resolving
+            -- it); pty.node checked where node-pty loads it (its prebuilds).
+            -- r2: what a root accepts -- the shim in dsh's own payload, and
+            -- sharp's RPATH kept inside it.
+            ["0.1.0-rc.6"] = { revision = 2 },
             ["0.1.0-rc.3"] = {},
         },
     },
@@ -161,8 +173,9 @@ local function _bindir()
     return path.join(pkginfo.install_dir(), "node_modules", ".bin")
 end
 
--- npm's own shim for `bin.dsh`. Used ONLY as install()'s artifact assertion;
--- the xvm shim deliberately does not go through it — see config().
+-- The package manager's shim for `bin.dsh`. Used ONLY as install()'s
+-- artifact assertion; the xvm shim deliberately does not go through it —
+-- see config().
 local function _shim()
     return path.join(_bindir(), is_host("windows") and "dsh.cmd" or "dsh")
 end
@@ -174,31 +187,104 @@ local function _entry()
                      "@deepseek-ai", "dsh", "lib", "bin.js")
 end
 
+-- sharp's prebuilt addon (node_modules/@img/sharp-<platform>/lib/*.node)
+-- lists libvips' place in five package-manager layouts on its RPATH. One of
+-- them climbs five directories up, out of this payload, and a SubOS with a
+-- root refuses an ELF whose search path leaves its closure ("ELF search path
+-- is outside its recorded root closure"). Only the entries that exist here
+-- and stay inside this payload are kept; the string is rewritten in place,
+-- NUL-padded to its old length, so nothing else in the file moves and no
+-- patchelf is needed.
+local function _ls(dir)
+    local out = {}
+    local p = io.popen('ls -1A "' .. dir .. '" 2>/dev/null')
+    if p then
+        for name in p:lines() do out[#out + 1] = name end
+        p:close()
+    end
+    return out
+end
+
+local function _keep_rpath_inside(file, root)
+    local f = io.open(file, "rb")
+    if not f then return end
+    local data = f:read("*a")
+    f:close()
+    local at = data:find("$ORIGIN/", 1, true)
+    if not at then return end
+    local first = at
+    while first > 1 and data:byte(first - 1) ~= 0 do first = first - 1 end
+    local last = data:find("\0", at, true)
+    if not last then return end
+    local old = data:sub(first, last - 1)
+    local dir = path.directory(file)
+    local depth = select(2, dir:sub(#root + 2):gsub("[^/]+", ""))
+    local kept = {}
+    for entry in old:gmatch("[^:]+") do
+        local rel = entry:match("^%$ORIGIN/(.*)$")
+        local ups = rel and select(2, rel:gsub("%.%./", "")) or math.huge
+        if ups <= depth and os.isdir(path.join(dir, rel)) then
+            kept[#kept + 1] = entry
+        end
+    end
+    local new = table.concat(kept, ":")
+    if new == old then return end
+    local w = io.open(file, "wb")
+    w:write(data:sub(1, first - 1), new, string.rep("\0", #old - #new), data:sub(last))
+    w:close()
+    log.info("dsh: " .. file .. " RPATH kept to " .. new)
+end
+
 function install()
     os.tryrm(pkginfo.install_dir())
     os.mkdir(pkginfo.install_dir())
 
     -- Same proot warm-up as openclaw.lua, and for the same reason: the
-    -- first large fork+exec burst inside a fresh proot sandbox (npm
-    -- unpacking ~530 packages) trips `double free or corruption` in
+    -- first large fork+exec burst inside a fresh proot sandbox (pnpm
+    -- unpacking ~450 packages) trips `double free or corruption` in
     -- proot's talloc pool. One PATH-traversing command primes proot's
     -- path cache. Linux-only (proot is), harmless on native Linux.
     if os.host() == "linux" then
         os.execute("node --version > /dev/null 2>&1")
     end
 
-    -- npm writes straight to the terminal, and its first line lands flush
+    -- pnpm writes straight to the terminal, and its first line lands flush
     -- against whatever xlings printed last, so the two read as one message.
     -- One blank line separates them.
     print("")
 
-    -- Lifecycle scripts run on purpose. See the header: node-pty's install
-    -- script is the only thing that produces pty.node on Linux.
-    os.exec(string.format(
-        [[npm install --prefix "%s" --no-fund --no-audit "@deepseek-ai/dsh@%s"]],
+    -- pnpm, not npm: npm 11 spends ~8 minutes and ~4 GB resolving this
+    -- tree's peer dependencies (out of memory on a macOS runner, past the
+    -- timeout on Windows); pnpm resolves the same tree in seconds. A hoisted
+    -- node_modules is npm's layout, so the paths below stay what they were.
+    -- Lifecycle scripts run on purpose (see the header), named: pnpm runs a
+    -- dependency's scripts only once it is allowed, and stops when one it
+    -- was not told about has some, so a new one cannot go by unrun.
+    -- The dep's own payload: its shim is not on a hook's PATH.
+    local pnpmdir = pkginfo.dep_install_dir("xim:pnpm")
+    if not pnpmdir then
+        raise("dsh: cannot locate the xim:pnpm payload to install with")
+    end
+    local pnpm = path.join(pnpmdir, is_host("windows") and "pnpm.exe" or "pnpm")
+    local builds = {"node-pty", "koffi", "protobufjs",
+                    "@deepseek-ai/dsh-subprocess-local", "@google/genai"}
+    local allow = ""
+    for _, name in ipairs(builds) do
+        allow = allow .. " --allow-build=" .. name
+    end
+    local cmd = string.format(
+        [["%s" add --dir "%s" --config.node-linker=hoisted%s "@deepseek-ai/dsh@%s"]],
+        pnpm,
         pkginfo.install_dir(),
+        allow,
         pkginfo.version()
-    ))
+    )
+    -- cmd /c drops the first and last quote of a line that starts with one;
+    -- an outer pair is what it drops, so the quoted path stays whole.
+    if is_host("windows") then
+        cmd = '"' .. cmd .. '"'
+    end
+    os.exec(cmd)
 
     -- Assert the artifact, not the intent: a bare `return true` here gets
     -- stamped as installed and leaves an xvm shim pointing at nothing.
@@ -206,18 +292,37 @@ function install()
         return false
     end
     if not os.isfile(_entry()) then
-        raise("dsh: npm tree has no @deepseek-ai/dsh/lib/bin.js after install")
+        raise("dsh: the installed tree has no @deepseek-ai/dsh/lib/bin.js")
+    end
+
+    -- See _keep_rpath_inside: sharp's addon, so this tree can go into a root.
+    if os.host() == "linux" then
+        local img = path.join(pkginfo.install_dir(), "node_modules", "@img")
+        for _, pkg in ipairs(_ls(img)) do
+            local lib = path.join(img, pkg, "lib")
+            for _, name in ipairs(_ls(lib)) do
+                if name:match("%.node$") then
+                    _keep_rpath_inside(path.join(lib, name), pkginfo.install_dir())
+                end
+            end
+        end
     end
 
     -- The whole point of not passing --ignore-scripts. On Linux this file
     -- only exists if node-pty's install script actually ran; without it
     -- every profile boot dies and only `--version` keeps working, which is
     -- exactly the failure this recipe shipped once already.
+    -- Where node-pty loads it from: its own build, or (1.2+) the prebuild it
+    -- ships for this platform, which its install script only checks for.
     if os.host() == "linux" then
-        local pty = path.join(pkginfo.install_dir(), "node_modules", "node-pty",
-                              "build", "Release", "pty.node")
-        if not os.isfile(pty) then
-            raise("dsh: node-pty was not built (no build/Release/pty.node); "
+        -- (os.arch() is not bound in hooks: either Linux prebuild will do.)
+        local ptydir = path.join(pkginfo.install_dir(), "node_modules", "node-pty")
+        local found = os.isfile(path.join(ptydir, "build", "Release", "pty.node"))
+        for _, arch in ipairs({"x64", "arm64"}) do
+            found = found or os.isfile(path.join(ptydir, "prebuilds", "linux-" .. arch, "pty.node"))
+        end
+        if not found then
+            raise("dsh: node-pty has no pty.node (neither build/Release nor prebuilds/linux-*); "
                   .. "profile boot would fail. node-gyp needs python3, make "
                   .. "and a C++ toolchain on this host.")
         end
@@ -226,43 +331,28 @@ function install()
     return true
 end
 
--- Pin the interpreter to the node payload this package resolved against,
--- rather than shipping npm's `node_modules/.bin/dsh` shim — that shim starts
--- with `#!/usr/bin/env node` and therefore follows whatever `xlings use node`
--- last selected. This is meson.lua's pattern (it execs its OWN python payload
--- for the same reason) and R6 of the V2 spec: an internal consumer binds the
--- payload, not the subos view.
+-- The shim lives in this package's own payload and runs `node` from the
+-- scope it is in: the alias branch of an xlings shim puts the payload on PATH
+-- and finds `node` as the subos's own (xim:node is a dep, so it is there).
+-- A registration must live in its own package's payload: a SubOS with a root
+-- (every Luban edition) refuses one that points into another package
+-- ("root registration contradicts its physical package provider"). r1
+-- pointed bindir at xim:node's payload and could not be installed into a
+-- root at all.
 --
--- Concretely, without this `xlings use node 26` silently changes which
--- runtime boots dsh. That is survivable today — node-pty is N-API and its
--- pty.node loads across majors (measured) — but "survivable" is not
--- "chosen", and upstream's floor is `>=24`, which a bare shim cannot enforce.
---
--- Stated trade-off, same as meson's: node is resolved once, at dsh-install
--- time. `xlings use node <other>` afterwards does not move dsh, and removing
--- the node payload leaves this shim pointing at a gone interpreter. For an
--- agent runtime with a native module compiled into its own tree, not moving
--- is the safer direction.
+-- The trade-off, measured rather than assumed: `xlings use node <other>`
+-- moves which node boots dsh. node-pty is N-API and its pty.node loads
+-- across majors (built under 26.7.0, loaded under 24.15.0). This is the
+-- user-facing view R6 of the V2 spec leaves to the programs a user runs, as
+-- openclaw.lua does. npm's `node_modules/.bin/dsh` is not used: it is a
+-- `#!/usr/bin/env node` script, one more lookup for the same answer.
 function config()
-    local nodedir = pkginfo.dep_install_dir("xim:node")
-    if not nodedir then
-        raise("dsh: cannot locate the xim:node payload; the shim would have "
-              .. "no interpreter to exec")
-    end
-
-    -- node.lua puts the binary in <payload>/bin on unix and at the payload
-    -- root on windows; mirror that rather than guessing one shape.
-    local nodebin = is_host("windows") and nodedir or path.join(nodedir, "bin")
     local exe = is_host("windows") and "node.exe" or "node"
-    if not os.isfile(path.join(nodebin, exe)) then
-        raise("dsh: xim:node payload at " .. nodebin .. " has no " .. exe)
-    end
-
     xvm.add("dsh", {
-        bindir = nodebin,
+        bindir = pkginfo.install_dir(),
         alias  = exe .. " " .. _entry(),
     })
-    log.info("dsh: shim execs " .. path.join(nodebin, exe) .. " " .. _entry())
+    log.info("dsh: shim execs " .. exe .. " " .. _entry())
     return true
 end
 

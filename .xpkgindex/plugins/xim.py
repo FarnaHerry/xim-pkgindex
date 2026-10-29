@@ -46,7 +46,7 @@ class XimPlugin(Plugin):
     def on_index(self, ctx) -> None:
         # Omitting the namespace means "this index's default namespace", which
         # xlings takes from the index name — `xim` for the official index
-        # (docs/design/index-distribution.md §1.1). So a descriptor without a
+        # (docs/00-what-this-index-is.md, "Namespaces"). So a descriptor without a
         # `namespace` field is not un-namespaced; it is in `xim`.
         ctx.meta.set("default_namespace",
                      os.path.basename(ctx.root).replace("-pkgindex", "") or "xim")
@@ -61,7 +61,13 @@ class XimPlugin(Plugin):
         name = str(raw.get("name") or "")
         if not name:
             name = os.path.basename(path)[: -len(".lua")]
-        return Identity.plain(str(raw.get("namespace") or ""), name)
+        namespace = str(raw.get("namespace") or "")
+        if namespace in ("", "xim"):
+            return Identity.plain(namespace, name)
+        # Another namespace is part of what is installed (`luban:xdesk` and
+        # `xim:xdesk` are two packages): the page and the command name it.
+        return Identity(namespace=namespace, name=name, display=f"{namespace}:{name}",
+                        slug=f"{namespace}-{name}", install_ref=f"{namespace}:{name}")
 
     def on_package(self, pkg, raw: Dict[str, Any]) -> None:
         ext = {

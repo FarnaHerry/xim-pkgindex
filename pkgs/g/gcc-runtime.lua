@@ -11,7 +11,7 @@ package = {
     docs = "https://gcc.gnu.org/onlinedocs/libstdc++/",
 
     type = "package",
-    archs = {"x86_64"},
+    archs = {"x86_64", "aarch64"},
     status = "stable",
     categories = {"libc++", "runtime", "lib"},
     keywords = {"libstdc++", "libgcc", "gcc-runtime", "cxx-runtime"},
@@ -30,16 +30,59 @@ package = {
     --   * libstdc++ is forward-compatible; one gcc-runtime version
     --     covers every binary built against an equal-or-older GCC
 
+    extensions = {
+        autoupdate = {
+            source = "https://github.com/xlings-res/gcc-runtime/releases",
+            resources = {
+                GLOBAL = {
+                    url = {
+                        linux = {
+                            aarch64 = "https://github.com/xlings-res/gcc-runtime/releases/download/${version}/gcc-runtime-${version}-linux-aarch64.tar.gz",
+                            x86_64 = "https://github.com/xlings-res/gcc-runtime/releases/download/${version}/gcc-runtime-${version}-linux-x86_64.tar.gz",
+                        },
+                    },
+                    required = true,
+                },
+                CN = {
+                    url = {
+                        linux = {
+                            aarch64 = "https://gitcode.com/xlings-res/gcc-runtime/releases/download/${version}/gcc-runtime-${version}-linux-aarch64.tar.gz",
+                            x86_64 = "https://gitcode.com/xlings-res/gcc-runtime/releases/download/${version}/gcc-runtime-${version}-linux-x86_64.tar.gz",
+                        },
+                    },
+                    required = true,
+                },
+            },
+            verify = "sha256-sidecar",
+        },
+    },
+
     xpm = {
         linux = {
             -- Tracks GCC main version. libstdc++ ABI is forward-
             -- compatible (versioned symbols GLIBCXX_3.4.x), so a single
             -- modern gcc-runtime covers all consumers.
             ["latest"] = { ref = "15.1.0" },
-            ["15.1.0"] = "XLINGS_RES",
+            ["15.1.0"] = {
+                x86_64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/gcc-runtime/releases/download/15.1.0/gcc-runtime-15.1.0-linux-x86_64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/gcc-runtime/releases/download/15.1.0/gcc-runtime-15.1.0-linux-x86_64.tar.gz",
+                    },
+                    sha256 = "4ec5c74bc73bc42540ac3c39124e403613be5c9aaa93c036bd938d32884495a5",
+                },
+                aarch64 = {
+                    url = {
+                        GLOBAL = "https://github.com/xlings-res/gcc-runtime/releases/download/15.1.0/gcc-runtime-15.1.0-linux-aarch64.tar.gz",
+                        CN = "https://gitcode.com/xlings-res/gcc-runtime/releases/download/15.1.0/gcc-runtime-15.1.0-linux-aarch64.tar.gz",
+                    },
+                    sha256 = "86aed3a2f78f623c48fa0dffa0eb377d405343ee5c733ee96f38f598e87d8b6e",
+                },
+            },
 
             deps = {
                 runtime = { "xim:glibc@>=2.39" },
+                build = { "xim:patchelf@0.18.0" },
             },
             exports = {
                 runtime = {

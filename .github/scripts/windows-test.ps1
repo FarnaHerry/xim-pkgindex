@@ -13,7 +13,11 @@ param(
     [string]$ChangedFiles,
 
     [Parameter(Mandatory=$true)]
-    [string]$WorkspaceRoot
+    [string]$WorkspaceRoot,
+
+    # The recipes placed in the index before any is installed: the whole plan for this platform
+    # when the plan is sharded (a dependency the PR changes may be another shard's).
+    [string]$OverlayFiles = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -66,6 +70,8 @@ function Test-MetadataOnlyOwnerMigration([string]$relFile) {
         $content = $line.Substring(1)
         if ($content -match '^\s*$') { continue }
         if ($content -match '^\s*(repo|homepage|contributors)\s*=') { continue }
+        # A comment changes nothing a recipe does (a graphics-ok note, a TODO).
+        if ($content -match '^\s*--') { continue }
         return $false
     }
     return $true
@@ -104,7 +110,7 @@ function Add-RecipeOverlay([string]$relFile) {
     if (-not $isNew) { return $true }
     Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $indexDir ".xlings-index-cache.json")
     $name = [System.IO.Path]::GetFileNameWithoutExtension($relFile)
-    $found = (& $xlingsCmd search $name 2>$null | Out-String) -match "xim:$([regex]::Escape($name))\b"
+    $found = (& $xlingsCmd search $name 2>$null | Out-String) -match "xim:$([regex]::Escape($name))([^A-Za-z0-9._+-]|$)"
     if ($found) { return $true }
     Remove-Item -Force -ErrorAction SilentlyContinue $dst
     return $false
@@ -118,11 +124,17 @@ if ((Test-Path (Join-Path $WorkspaceRoot "libs")) -and (Test-Path $indexDir -Pat
 }
 
 # Every changed recipe is placed before any is installed, so a dependency the
-# PR adds resolves whichever order the files are tested in.
-foreach ($f in $files) {
+# PR adds resolves whichever order -- and whichever shard -- the files are tested in.
+# (A name of its own: PowerShell's names ignore case, and $OverlayFiles is a [string] parameter, so
+# the list assigned to it would be joined back into one string.)
+$placedFirst = if ($OverlayFiles) { @($OverlayFiles -split '\s+' | Where-Object { $_ -and $_.Trim() -ne "" }) } else { $files }
+foreach ($f in $placedFirst) {
     $rel = $f -replace '/', '\'
     if (-not (Test-Path (Join-Path $WorkspaceRoot $rel))) { continue }
-    if (-not (Add-RecipeOverlay $rel)) {
+    if (Add-RecipeOverlay $rel) {
+        Write-Host "  placed in the index: $rel"
+    } else {
+        Write-Host "  placed through --add-xpkg (it did not resolve under xim:): $rel"
         & $xlingsCmd config --add-xpkg (Join-Path $WorkspaceRoot $rel) 2>&1 | Out-Null
     }
 }
@@ -210,7 +222,14 @@ foreach ($relFile in $files) {
         continue
     }
     if (Test-MetadataOnlyOwnerMigration -relFile $relFile) {
-        Log-Info "skip (metadata-only owner/link migration): $relFile"
+        Log-Info "skip (metadata or comments only): $relFile"
+        $skipped++
+        continue
+    }
+    # Luban's own packages are made, booted and checked by
+    # luban-agent-workspace.yml, with the xlings they are written for.
+    if (($relFile -replace '\\', '/') -like "pkgs/luban/*") {
+        Log-Info "skip (a Luban package: luban-agent-workspace.yml tests it): $relFile"
         $skipped++
         continue
     }
@@ -481,6 +500,20 @@ foreach ($relFile in $files) {
         if ($delegates) {
             Log-Info "uninstall not asserted: this recipe delegates its Windows install"
             Log-Info "  ($removeSpec registers no xvm version of its own -- see the note in this script)"
+            continue
+        }
+        # Removing xlings when it is the only installed version is refused by
+        # design (exit 2): that binary is the one running the command, and
+        # `xlings self uninstall` exists for it. Same tolerance posix-test.sh
+        # has carried since #543, and for the same reason: #878 made this
+        # script overlay the changed recipe into the index too, so a bump PR
+        # now installs `xim:xlings` -- the runner's own package -- where it
+        # used to install `local:xlings`, which the guard does not match.
+        # #876 (local:xlings@2026.9.26.2) passed; #883 (xim:xlings@2026.9.26.3)
+        # hit the guard with nothing about xlings or its recipe to blame.
+        if ($pkg -eq "xlings" -and $rc -eq 2) {
+            Log-Info "uninstall not asserted: this IS the running xlings, and it is"
+            Log-Info "  the only installed version (use ``xlings self uninstall``)"
             continue
         }
         Log-Fail "uninstall failed"
