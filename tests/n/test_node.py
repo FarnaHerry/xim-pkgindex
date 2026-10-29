@@ -24,7 +24,7 @@ from tests.lib.assertions import (
     assert_no_typos, assert_no_exec_xvm, assert_no_bashrc_modification,
     assert_no_direct_path_modification, assert_uses_new_api,
     assert_xim_add_succeeds, assert_install_succeeds,
-    assert_command_output, assert_xvm_registered,
+    assert_command_output, assert_xvm_shim_exists,
 )
 from tests.lib.platform_utils import skip_if_not
 
@@ -372,7 +372,7 @@ class TestVerify:
     @pytest.mark.verify
     @skip_if_not('linux')
     def test_node_version(self):
-        assert_command_output("node --version", contains="v24.19.0")
+        assert_command_output("node --version", contains="v26.13.0")
 
     @pytest.mark.verify
     @skip_if_not('linux')
@@ -382,4 +382,6 @@ class TestVerify:
     @pytest.mark.verify
     @skip_if_not('linux')
     def test_xvm_node(self):
-        assert_xvm_registered("node")
+        # `xvm info` prints runtime tips and exits 0 for any target on current
+        # xlings, so assert the real shim landed instead (same as test_nvm.py).
+        assert_xvm_shim_exists("node")

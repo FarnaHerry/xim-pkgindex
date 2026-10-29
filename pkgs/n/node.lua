@@ -8,6 +8,14 @@
 -- Every version listed in `xpm` must appear here (windows-only keys are absent
 -- for versions no windows section lists; 18.20.8 has no win-arm64 build at all).
 local _sha256 = {
+    ["26.13.0"] = {
+        linux_x64     = "d28a96af6c38596f6d9d97c0ee531c13d238d757742387d1928de822d959e997",
+        linux_arm64   = "406fe3fbde1c054adff8b297c16fdb5af6659db327c1ac8acd46b56ef1af9a92",
+        darwin_x64    = "525c9b29bb0263d687de60a4cec0e2a6db876a8eb032369e5795eca71e7c358e",
+        darwin_arm64  = "d38bd5e5a2ddce6bbb5ce45e46e208337da4d51fffe611e567fd32073d6439f6",
+        win_x64       = "dcc60d59a0746999f99064a01c020445d54d84228c691cdbf25b49ac3b59150a",
+        win_arm64     = "a9427139595156ef484e1fb08957676e09d4232368dd1743a2a9f93f3d241b14",
+    },
     ["24.20.0"] = {
         linux_x64     = "2f2c0da162318f0de47665410c7c8c2ed3d36c8f3105de4bbc61176c70a7cbf2",
         linux_arm64   = "5f4ddab610c1ab2016b3c227cebdbf6d9495161487e4739c7b90090595f465f7",
@@ -188,13 +196,13 @@ package = {
     categories = {"node", "javascript"},
 
     xpm = {
-        -- `latest` tracks the ACTIVE LTS line (24.x "Krypton"), not the newest
-        -- release: an unpinned `xlings install node` should get the line node
-        -- itself recommends for production. 26.x is Current until it enters LTS
-        -- in Oct 2026; it is listed so `node@26.7.0` resolves, but it is not the
-        -- default. Same rule the 24.15.0 bump followed.
+        -- `latest` tracks the ACTIVE LTS line (26.x "Lithium"), not necessarily
+        -- the newest release: an unpinned `xlings install node` should get the
+        -- line node itself recommends for production. 26.x entered LTS in
+        -- Oct 2026, so it is now the default.
         windows = {
-            ["latest"] = { ref = "24.20.0" },
+            ["latest"] = { ref = "26.13.0" },
+            ["26.13.0"] = _win_url("26.13.0"),
             ["26.7.0"] = _win_url("26.7.0"),
             ["25.9.0"] = _win_url("25.9.0"),
             ["24.20.0"] = _win_url("24.20.0"),
@@ -222,7 +230,8 @@ package = {
             deps = {
                 runtime = { "xim:glibc@>=2.39", "xim:gcc-runtime@15.1.0" },
             },
-            ["latest"] = { ref = "24.20.0" },
+            ["latest"] = { ref = "26.13.0" },
+            ["26.13.0"] = _linux_url("26.13.0"),
             ["26.7.0"] = _linux_url("26.7.0"),
             ["25.9.0"] = _linux_url("25.9.0"),
             ["24.20.0"] = _linux_url("24.20.0"),
@@ -239,7 +248,8 @@ package = {
             ["18.20.8"] = _linux_url("18.20.8"),
         },
         macosx = {
-            ["latest"] = { ref = "24.20.0" },
+            ["latest"] = { ref = "26.13.0" },
+            ["26.13.0"] = _mac_url("26.13.0"),
             ["26.7.0"] = _mac_url("26.7.0"),
             ["25.9.0"] = _mac_url("25.9.0"),
             ["24.20.0"] = _mac_url("24.20.0"),
@@ -412,11 +422,24 @@ function config()
     return true
 end
 
+-- xvm.add() adds the index namespace prefix, but xvm.remove() does not. With
+-- the same node version installed from both xim and local, a bare npm/npx key
+-- would target the xim registration and leave the local one behind.
+local function _stored_tool_version()
+    local store = path.filename(path.directory(pkginfo.install_dir()))
+    local ns = store:match("^(.-)%-x%-")
+    local bare = "node-" .. pkginfo.version()
+    if ns and ns ~= "" and ns ~= "xim" then
+        return ns .. ":" .. bare
+    end
+    return bare
+end
+
 function uninstall()
     log.debug("Uninstalling Node.js from %s ...", pkginfo.install_dir())
     xvm.remove("node")
     xvm.remove("nodejs")
-    xvm.remove("npm", "node-" .. pkginfo.version())
-    xvm.remove("npx", "node-" .. pkginfo.version())
+    xvm.remove("npm", _stored_tool_version())
+    xvm.remove("npx", _stored_tool_version())
     return true
 end
